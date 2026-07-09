@@ -68,7 +68,10 @@ describe("parseNumberedList", () => {
   it("parses a title + numbered options", () => {
     expect(parseNumberedList("Pick one\n1. Alpha\n2. Beta")).toEqual({
       title: "Pick one",
-      items: ["Alpha", "Beta"],
+      items: [
+        { index: 1, label: "Alpha" },
+        { index: 2, label: "Beta" },
+      ],
     });
   });
 

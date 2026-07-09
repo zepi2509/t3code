@@ -122,13 +122,21 @@ interface PiTurnState {
 interface PendingApproval {
   readonly piId: string;
   readonly requestType: CanonicalRequestType;
+  readonly sessionApprovalKey: string;
 }
+
+interface NumberedOption {
+  readonly index: number;
+  readonly label: string;
+}
+
+type PendingNumberedOption = string | NumberedOption;
 
 interface PendingUserInput {
   readonly piId: string;
   readonly questionId: string;
   readonly method: "select" | "input" | "editor";
-  readonly numberedOptions?: ReadonlyArray<string>;
+  readonly numberedOptions?: ReadonlyArray<PendingNumberedOption>;
 }
 
 interface PiSessionContext {
@@ -138,6 +146,7 @@ interface PiSessionContext {
   notificationFiber: Fiber.Fiber<void, never> | undefined;
   readonly pendingApprovals: Map<ApprovalRequestId, PendingApproval>;
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
+  readonly sessionApprovals: Set<string>;
   turnState: PiTurnState | undefined;
   readonly turns: Array<{ id: TurnId; items: Array<PiToolItem> }>;
   stopped: boolean;
@@ -162,10 +171,10 @@ export function classifyPiToolItemType(toolName: string): CanonicalItemType {
   );
   const has = (...words: ReadonlyArray<string>): boolean => words.some((word) => tokens.has(word));
 
+  if (has("mcp")) return "mcp_tool_call";
   if (has("agent", "subagent", "task", "skill")) return "collab_agent_tool_call";
   if (has("bash", "shell", "command", "terminal", "exec")) return "command_execution";
   if (has("edit", "write", "patch", "apply", "file")) return "file_change";
-  if (has("mcp")) return "mcp_tool_call";
   if (has("search", "web")) return "web_search";
   if (has("image")) return "image_view";
   return "dynamic_tool_call";
@@ -205,12 +214,12 @@ export function summarizePiToolArgs(args: unknown): string | undefined {
 // Pi encodes an RPC multi-select as `Title\n1. A\n2. B`
 export function parseNumberedList(
   text: string,
-): { title: string; items: ReadonlyArray<string> } | null {
+): { title: string; items: ReadonlyArray<NumberedOption> } | null {
   const lines = text.split("\n");
-  const items: string[] = [];
+  const items: NumberedOption[] = [];
   for (const line of lines.slice(1)) {
-    const match = /^\d+\.\s+(.+)$/.exec(line.trim());
-    if (match?.[1]) items.push(match[1]);
+    const match = /^(\d+)\.\s+(.+)$/.exec(line.trim());
+    if (match?.[1] && match[2]) items.push({ index: Number(match[1]), label: match[2] });
   }
   return items.length >= 2 ? { title: lines[0] ?? text, items } : null;
 }
@@ -232,7 +241,7 @@ export function buildPiUserInputResponse(
     readonly piId: string;
     readonly questionId: string;
     readonly method: "select" | "input" | "editor";
-    readonly numberedOptions?: ReadonlyArray<string>;
+    readonly numberedOptions?: ReadonlyArray<PendingNumberedOption>;
   },
   answers: ProviderUserInputAnswers,
 ): RpcExtensionUIResponse {
@@ -246,8 +255,13 @@ export function buildPiUserInputResponse(
         : [];
     const indices = selected
       .map((label) => {
-        const idx = numberedOptions.indexOf(label);
-        return idx >= 0 ? String(idx + 1) : null;
+        const optionIndex = numberedOptions.findIndex((entry) =>
+          typeof entry === "string" ? entry === label : entry.label === label,
+        );
+        if (optionIndex < 0) return null;
+        const option = numberedOptions[optionIndex];
+        if (option === undefined) return null;
+        return String(typeof option === "string" ? optionIndex + 1 : option.index);
       })
       .filter((value): value is string => value !== null);
     return { type: "extension_ui_response", id: pending.piId, value: indices.join(",") };
@@ -570,7 +584,20 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         const requestType = classifyPiApprovalRequestType(request.title);
         const detail =
           request.message.length > 0 ? `${request.title}\n${request.message}` : request.title;
-        context.pendingApprovals.set(requestId, { piId: request.id, requestType });
+        const sessionApprovalKey = `${requestType}:${detail}`;
+        if (context.sessionApprovals.has(sessionApprovalKey)) {
+          yield* context.transport.writeExtensionResponse({
+            type: "extension_ui_response",
+            id: request.id,
+            confirmed: true,
+          });
+          return;
+        }
+        context.pendingApprovals.set(requestId, {
+          piId: request.id,
+          requestType,
+          sessionApprovalKey,
+        });
         yield* offerRuntimeEvent({
           ...stamp,
           provider: PROVIDER,
@@ -587,7 +614,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
       const questionId = String(requestId);
       let question: UserInputQuestion;
-      let numberedOptions: ReadonlyArray<string> | undefined;
+      let numberedOptions: ReadonlyArray<PendingNumberedOption> | undefined;
 
       if (request.method === "select") {
         question = {
@@ -606,7 +633,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             id: questionId,
             header: parsed.title.slice(0, 12) || "Select",
             question: parsed.title,
-            options: parsed.items.map((item) => ({ label: item, description: item })),
+            options: parsed.items.map((item) => ({ label: item.label, description: item.label })),
             multiSelect: true,
           };
         } else {
@@ -657,7 +684,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
   // settle+clear pending extension-UI requests so Pi is never left blocked
   const cancelPendingExtensionRequests = (context: PiSessionContext): Effect.Effect<void> =>
     Effect.gen(function* () {
-      for (const [, pending] of context.pendingApprovals) {
+      for (const [requestId, pending] of context.pendingApprovals) {
         yield* Effect.ignore(
           context.transport.writeExtensionResponse({
             type: "extension_ui_response",
@@ -665,9 +692,20 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             confirmed: false,
           }),
         );
+        const stamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          ...stamp,
+          type: "request.resolved",
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
+          requestId: RuntimeRequestId.make(requestId),
+          payload: { requestType: pending.requestType, decision: "decline" },
+        });
       }
       context.pendingApprovals.clear();
-      for (const [, pending] of context.pendingUserInputs) {
+      for (const [requestId, pending] of context.pendingUserInputs) {
         yield* Effect.ignore(
           context.transport.writeExtensionResponse({
             type: "extension_ui_response",
@@ -675,6 +713,17 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             cancelled: true,
           }),
         );
+        const stamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          ...stamp,
+          type: "user-input.resolved",
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
+          requestId: RuntimeRequestId.make(requestId),
+          payload: { answers: {} },
+        });
       }
       context.pendingUserInputs.clear();
     });
@@ -927,6 +976,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       notificationFiber: undefined,
       pendingApprovals: new Map(),
       pendingUserInputs: new Map(),
+      sessionApprovals: new Set(),
       turnState: undefined,
       turns: [],
       stopped: false,
@@ -1068,7 +1118,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         providerInstanceId: boundInstanceId,
         threadId: context.session.threadId,
         turnId,
-        payload: {},
+        payload: context.currentModel ? { model: context.currentModel } : {},
       });
     }
 
@@ -1077,7 +1127,20 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     yield* context.transport
       .writeCommand(buildPiTurnCommand({ isMidTurn, message: promptText, images }))
       .pipe(
-        Effect.catchCause(() => completeTurn(context, "failed", "Failed to send message to Pi.")),
+        Effect.catchCause((cause) =>
+          completeTurn(context, "failed", "Failed to send message to Pi.").pipe(
+            Effect.andThen(
+              Effect.fail(
+                new ProviderAdapterRequestError({
+                  provider: PROVIDER,
+                  method: "prompt",
+                  detail: "Failed to send message to Pi.",
+                  cause,
+                }),
+              ),
+            ),
+          ),
+        ),
       );
 
     return {
@@ -1095,6 +1158,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       yield* Effect.ignore(context.transport.writeCommand({ type: "abort" }));
       // settle bridged requests so Pi isn't left blocked (matches Cursor)
       yield* cancelPendingExtensionRequests(context);
+      if (context.turnState) {
+        yield* completeTurn(context, "interrupted", "Turn interrupted.");
+      }
     },
   );
 
@@ -1113,6 +1179,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
       const response: RpcExtensionUIResponse = buildPiApprovalResponse(pending.piId, decision);
       yield* context.transport.writeExtensionResponse(response);
+      if (decision === "acceptForSession") {
+        context.sessionApprovals.add(pending.sessionApprovalKey);
+      }
 
       const stamp = yield* makeEventStamp();
       yield* offerRuntimeEvent({
@@ -1182,6 +1251,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       // forking mid-stream is undefined — abort/finalize any live turn first
       if (context.turnState) {
         yield* Effect.ignore(context.transport.writeCommand({ type: "abort" }));
+        yield* cancelPendingExtensionRequests(context);
         yield* completeTurn(context, "interrupted", "Turn interrupted for rollback.");
       }
 
@@ -1190,6 +1260,13 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         `pi-fork-messages-${yield* nextUuid}`,
         PI_MESSAGES_TIMEOUT_MS,
       );
+      if (!piResponseSucceeded(forkResponse, "get_fork_messages")) {
+        return yield* new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "get_fork_messages",
+          detail: "Pi did not return forkable messages for rollback.",
+        });
+      }
       const userMessages = extractForkMessages(forkResponse);
       const target = resolveForkTargetEntryId(userMessages, numTurns);
 
@@ -1233,8 +1310,20 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         ...context.session,
         status: "ready",
         updatedAt,
-        ...(sessionFile !== undefined ? { resumeCursor: { sessionFile } } : {}),
+        resumeCursor: sessionFile !== undefined ? { sessionFile } : undefined,
       };
+
+      if (sessionFile !== undefined) {
+        const threadStartedStamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          ...threadStartedStamp,
+          type: "thread.started",
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId,
+          payload: { providerThreadId: sessionFile },
+        });
+      }
 
       context.turns.splice(Math.max(0, context.turns.length - numTurns));
 

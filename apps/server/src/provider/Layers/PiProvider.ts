@@ -5,6 +5,7 @@ import {
   ProviderDriverKind,
 } from "@t3tools/contracts";
 import { createModelCapabilities } from "@t3tools/shared/model";
+import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -43,11 +44,18 @@ const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 const runPiVersion = (piSettings: PiSettings, environment: NodeJS.ProcessEnv) =>
   Effect.suspend(() => {
     const binaryPath = piSettings.binaryPath || "pi";
-    const command = ChildProcess.make(binaryPath, ["--version"], {
-      env: environment,
-      shell: false,
+    return Effect.gen(function* () {
+      const spawnCommand = yield* resolveSpawnCommand(binaryPath, ["--version"], {
+        env: environment,
+        extendEnv: true,
+      });
+      const command = ChildProcess.make(spawnCommand.command, spawnCommand.args, {
+        env: environment,
+        extendEnv: true,
+        shell: spawnCommand.shell,
+      });
+      return yield* spawnAndCollect(binaryPath, command);
     });
-    return spawnAndCollect(binaryPath, command);
   });
 
 /** Discover models via a short-lived `pi --mode rpc` session; `[]` on any failure. */
@@ -208,7 +216,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   const models = modelsFromSettings(piSettings, discovered);
 
   // no auth query in pi; get_available_models only lists once a key is configured in ~/.pi/agent
-  const authenticated = models.length > 0;
+  const authenticated = discovered.length > 0;
 
   return buildServerProvider({
     presentation: PI_PRESENTATION,

@@ -188,7 +188,7 @@ const buildCmd = Command.make(
         yield* fs.copyFile(piExtensionSource, path.join(piAssetTargetDir, "t3-approvals.ts"));
         yield* Effect.log("[cli] Bundled Pi approval extension into dist/assets/pi");
       } else {
-        yield* Effect.logWarning("[cli] Pi approval extension not found — skipping asset copy.");
+        return yield* new ServerCliBuildAssetMissingError({ assetPath: piExtensionSource });
       }
 
       if (yield* fs.exists(webDist)) {

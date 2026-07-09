@@ -18,6 +18,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { buildSelectOptionDescriptor } from "../providerSnapshot.ts";
 import { createModelCapabilities, getModelSelectionStringOptionValue } from "@t3tools/shared/model";
+import { resolveSpawnCommand } from "@t3tools/shared/shell";
 
 export type PiStdoutMessage =
   | { readonly _tag: "response"; readonly id: string | undefined; readonly response: RpcResponse }
@@ -50,6 +51,7 @@ export function classifyPiStdoutMessage(msg: Record<string, unknown>): PiStdoutM
     };
   }
   if (type === "extension_ui_request") {
+    if (typeof msg["id"] !== "string" || typeof msg["method"] !== "string") return null;
     return { _tag: "extension-ui", request: msg as unknown as RpcExtensionUIRequest };
   }
   if (typeof type === "string" && type.length > 0) {
@@ -175,14 +177,21 @@ export function planPiModelSwitch(
   return { kind: "switch", provider: parts.provider, modelId: parts.id, slug: requestedModel };
 }
 
-export function piModelCapabilities(reasoning: boolean): ModelCapabilities {
+export function piModelCapabilities(
+  model: boolean | Pick<ModelInfo, "provider" | "id" | "reasoning">,
+): ModelCapabilities {
+  const reasoning = typeof model === "boolean" ? model : Boolean(model.reasoning);
+  const supportsExtraHigh =
+    typeof model === "boolean" || (model.provider === "openai" && model.id === "codex-max");
   return createModelCapabilities({
     optionDescriptors: reasoning
       ? [
           buildSelectOptionDescriptor({
             id: "thinking",
             label: "Thinking",
-            options: PI_THINKING_LEVELS.map((level) => ({ ...level })),
+            options: PI_THINKING_LEVELS.filter(
+              (level) => level.value !== "xhigh" || supportsExtraHigh,
+            ).map((level) => ({ ...level })),
           }),
         ]
       : [],
@@ -197,7 +206,7 @@ export function piModelInfoToServerModel(model: ModelInfo): ServerProviderModel 
     slug,
     name,
     isCustom: false,
-    capabilities: piModelCapabilities(Boolean(model.reasoning)),
+    capabilities: piModelCapabilities(model),
   };
 }
 
@@ -218,7 +227,13 @@ export function extractAvailableModels(
   response: RpcResponse | undefined,
 ): ReadonlyArray<ModelInfo> {
   const models = piResponseData(response)?.["models"];
-  return Array.isArray(models) ? (models as ReadonlyArray<ModelInfo>) : [];
+  if (!Array.isArray(models)) return [];
+  return models.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const model = entry as Record<string, unknown>;
+    if (typeof model["provider"] !== "string" || typeof model["id"] !== "string") return [];
+    return [model as unknown as ModelInfo];
+  });
 }
 
 // approval-gate handshake: the sentinel command's presence confirms the gate loaded
@@ -313,11 +328,16 @@ export const makePiRpcTransport = (options: MakePiRpcTransportOptions) =>
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
+    const spawnCommand = yield* resolveSpawnCommand(options.binaryPath || "pi", options.args, {
+      env: options.env,
+      extendEnv: true,
+    });
     const child = yield* spawner.spawn(
-      ChildProcess.make(options.binaryPath || "pi", [...options.args], {
+      ChildProcess.make(spawnCommand.command, spawnCommand.args, {
         cwd: options.cwd,
         env: options.env,
-        shell: false,
+        extendEnv: true,
+        shell: spawnCommand.shell,
         forceKillAfter: 5000,
       }),
     );
@@ -349,6 +369,7 @@ export const makePiRpcTransport = (options: MakePiRpcTransportOptions) =>
       });
 
     const onProcessExit = Deferred.succeed(closed, undefined).pipe(
+      Effect.andThen(Queue.shutdown(messages)),
       Effect.andThen(Effect.sync(() => pendingRequests.clear())),
       Effect.andThen(options.onExit),
     );
