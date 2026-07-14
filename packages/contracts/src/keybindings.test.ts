@@ -65,6 +65,12 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedLocal.command, "chat.newLocal");
 
+    const parsedQueuedSend = yield* decode(KeybindingRule, {
+      key: "mod+enter",
+      command: "composer.sendAfterCompletion",
+    });
+    assert.strictEqual(parsedQueuedSend.command, "composer.sendAfterCompletion");
+
     const parsedModelPickerToggle = yield* decode(KeybindingRule, {
       key: "mod+shift+m",
       command: "modelPicker.toggle",

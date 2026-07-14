@@ -58,6 +58,7 @@ import {
   removeInlineTerminalContextPlaceholder,
 } from "../../lib/terminalContext";
 import { useComposerPathSearch } from "../../lib/composerPathSearchState";
+import { resolveShortcutCommand } from "../../keybindings";
 import { type ElementContextDraft } from "../../lib/elementContext";
 import { ComposerPendingElementContexts } from "./ComposerPendingElementContexts";
 import { ComposerPendingReviewComments } from "./ComposerPendingReviewComments";
@@ -518,10 +519,7 @@ export interface ChatComposerProps {
   composerRef: React.RefObject<ChatComposerHandle | null>;
 
   // Callbacks
-  onSend: (
-    e?: { preventDefault: () => void },
-    deliveryMode?: "steer" | "follow-up",
-  ) => void;
+  onSend: (e?: { preventDefault: () => void }, deliveryMode?: "steer" | "follow-up") => void;
   onInterrupt: () => void;
   onImplementPlanInNewThread: () => void;
   onRespondToApproval: (
@@ -1776,6 +1774,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         onSelectComposerItem(selectedItem);
         return true;
       }
+    }
+    if (
+      phase === "running" &&
+      resolveShortcutCommand(event, keybindings) === "composer.sendAfterCompletion"
+    ) {
+      submitComposer(undefined, "follow-up");
+      return true;
     }
     if (key === "Enter" && !event.shiftKey) {
       submitComposer();
