@@ -73,6 +73,7 @@ import {
 } from "./PiRpcClient.ts";
 
 const PROVIDER = ProviderDriverKind.make("pi");
+export const buildPiCompactCommand = () => ({ type: "compact" as const });
 
 const PI_STATE_TIMEOUT_MS = 5_000;
 const PI_COMMANDS_TIMEOUT_MS = 5_000;
@@ -1597,6 +1598,24 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     },
   );
 
+  const compactThread: PiAdapterShape["compactThread"] = Effect.fn("compactThread")(
+    function* (threadId) {
+      const context = yield* requireSession(threadId);
+      const response = yield* context.transport.request(
+        buildPiCompactCommand(),
+        `pi-compact-${yield* nextUuid}`,
+        PI_PROMPT_TIMEOUT_MS,
+      );
+      if (!piResponseSucceeded(response, "compact")) {
+        return yield* new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "compact",
+          detail: "Pi rejected the compact request.",
+        });
+      }
+    },
+  );
+
   const respondToRequest: PiAdapterShape["respondToRequest"] = Effect.fn("respondToRequest")(
     function* (threadId, requestId, decision: ProviderApprovalDecision) {
       const context = yield* requireSession(threadId);
@@ -1805,10 +1824,11 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
   return {
     provider: PROVIDER,
-    capabilities: { sessionModelSwitch: "in-session" as const },
+    capabilities: { sessionModelSwitch: "in-session" as const, manualCompaction: true },
     startSession,
     sendTurn,
     interruptTurn,
+    compactThread,
     readThread,
     rollbackThread,
     respondToRequest,

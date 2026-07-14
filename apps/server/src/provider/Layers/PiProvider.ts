@@ -258,6 +258,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
     models,
     slashCommands: discovered.slashCommands,
     skills: discovered.skills,
+    supportsManualCompaction: true,
     probe: {
       installed: true,
       version: parsedVersion,

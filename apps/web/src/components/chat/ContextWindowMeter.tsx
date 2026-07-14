@@ -1,6 +1,7 @@
 import { cn } from "~/lib/utils";
 import { type ContextWindowSnapshot, formatContextWindowTokens } from "~/lib/contextWindow";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
+import { Button } from "../ui/button";
 
 function formatPercentage(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) {
@@ -12,9 +13,13 @@ function formatPercentage(value: number | null): string | null {
   return `${Math.round(value)}%`;
 }
 
+export const canCompactContext = (supported: boolean, hasUsage: boolean): boolean =>
+  supported && hasUsage;
+
 export function ContextWindowMeter(props: {
   usage: ContextWindowSnapshot;
   providerDisplayName?: string | null;
+  onCompact?: () => void;
 }) {
   const { usage, providerDisplayName } = props;
   const usedPercentage = formatPercentage(usage.usedPercentage);
@@ -124,6 +129,11 @@ export function ContextWindowMeter(props: {
             <div className="mt-1 text-pretty text-[11px] font-medium text-muted-foreground/70">
               {providerDisplayName ?? "It"} automatically compacts its context when needed.
             </div>
+          ) : null}
+          {props.onCompact ? (
+            <Button size="sm" variant="secondary" type="button" onClick={props.onCompact}>
+              Compact context
+            </Button>
           ) : null}
         </div>
       </PopoverPopup>

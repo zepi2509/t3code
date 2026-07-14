@@ -83,7 +83,9 @@ import {
   renderProviderTraitsMenuContent,
   renderProviderTraitsPicker,
 } from "./composerProviderState";
-import { ContextWindowMeter } from "./ContextWindowMeter";
+import { canCompactContext, ContextWindowMeter } from "./ContextWindowMeter";
+import { useAtomCommand } from "../../state/use-atom-command";
+import { threadEnvironment } from "../../state/threads";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
 import { basenameOfPath } from "../../pierre-icons";
 import { cn, randomUUID } from "~/lib/utils";
@@ -331,6 +333,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   compact: boolean;
   activeContextWindow: ReturnType<typeof deriveLatestContextWindowSnapshot>;
   activeThreadProviderDisplayName: string | null;
+  onCompact?: () => void;
   isPreparingWorktree: boolean;
   pendingAction: {
     questionIndex: number;
@@ -357,6 +360,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         <ContextWindowMeter
           usage={props.activeContextWindow}
           providerDisplayName={props.activeThreadProviderDisplayName}
+          onCompact={props.onCompact}
         />
       ) : null}
       {props.isPreparingWorktree ? (
@@ -495,6 +499,7 @@ export interface ChatComposerProps {
 
   // Context window
   activeThreadActivities: Thread["activities"] | undefined;
+  supportsManualCompaction: boolean;
 
   // Misc
   resolvedTheme: "light" | "dark";
@@ -587,6 +592,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeProjectDefaultModelSelection,
     activeThreadModelSelection,
     activeThreadActivities,
+    supportsManualCompaction,
     resolvedTheme,
     settings,
     keybindings,
@@ -871,6 +877,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
     return formatProviderDisplayName(activeThreadModelSelection.instanceId);
   }, [providerStatuses, activeThreadModelSelection]);
+  const compactThread = useAtomCommand(threadEnvironment.compact, "context compaction");
+  const handleCompact = useCallback(() => {
+    if (!activeThreadId) return;
+    void compactThread({ environmentId, input: { threadId: activeThreadId } });
+  }, [activeThreadId, compactThread, environmentId]);
 
   // ------------------------------------------------------------------
   // Composer-local state
@@ -2567,6 +2578,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   compact={isComposerPrimaryActionsCompact}
                   activeContextWindow={activeContextWindow}
                   activeThreadProviderDisplayName={activeThreadProviderDisplayName}
+                  onCompact={
+                    canCompactContext(supportsManualCompaction, activeContextWindow !== null)
+                      ? handleCompact
+                      : undefined
+                  }
                   pendingAction={pendingPrimaryAction}
                   isRunning={phase === "running"}
                   showPlanFollowUpPrompt={pendingUserInputs.length === 0 && showPlanFollowUpPrompt}
