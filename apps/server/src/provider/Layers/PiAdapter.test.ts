@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import type { ProviderApprovalDecision } from "@t3tools/contracts";
 
 import {
+  buildPiCompactCommand,
   buildPiApprovalResponse,
   buildPiUserInputResponse,
   classifyPiApprovalRequestType,
@@ -148,4 +149,8 @@ describe("buildPiUserInputResponse", () => {
       buildPiUserInputResponse({ piId: "ui-4", questionId: "q4", method: "editor" }, {}),
     ).toEqual({ type: "extension_ui_response", id: "ui-4", cancelled: true });
   });
+});
+
+it("builds Pi's manual compaction RPC command", () => {
+  expect(buildPiCompactCommand()).toEqual({ type: "compact" });
 });

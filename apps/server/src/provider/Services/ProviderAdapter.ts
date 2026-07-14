@@ -30,6 +30,7 @@ export interface ProviderAdapterCapabilities {
    * Declares whether changing the model on an existing session is supported.
    */
   readonly sessionModelSwitch: ProviderSessionModelSwitchMode;
+  readonly manualCompaction?: boolean;
 }
 
 export interface ProviderThreadTurnSnapshot {
@@ -67,6 +68,8 @@ export interface ProviderAdapterShape<TError> {
    * Interrupt an active turn.
    */
   readonly interruptTurn: (threadId: ThreadId, turnId?: TurnId) => Effect.Effect<void, TError>;
+
+  readonly compactThread?: (threadId: ThreadId) => Effect.Effect<void, TError>;
 
   /**
    * Respond to an interactive approval request.

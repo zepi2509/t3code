@@ -1,7 +1,15 @@
 import { EnvironmentId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { shouldShowOpenInPicker } from "./ChatHeader";
+import { shouldShowManualCompaction, shouldShowOpenInPicker } from "./ChatHeader";
+
+describe("shouldShowManualCompaction", () => {
+  it("only exposes the action for providers advertising the capability", () => {
+    expect(shouldShowManualCompaction({ supportsManualCompaction: true } as never)).toBe(true);
+    expect(shouldShowManualCompaction({} as never)).toBe(false);
+    expect(shouldShowManualCompaction(null)).toBe(false);
+  });
+});
 
 describe("shouldShowOpenInPicker", () => {
   const primaryEnvironmentId = EnvironmentId.make("environment-primary");

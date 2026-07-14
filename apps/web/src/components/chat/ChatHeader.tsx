@@ -3,6 +3,7 @@ import {
   type EditorId,
   type ProjectScript,
   type ResolvedKeybindingsConfig,
+  type ServerProvider,
   type ThreadId,
 } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
@@ -17,6 +18,10 @@ import ProjectScriptsControl, {
 import { OpenInPicker } from "./OpenInPicker";
 import { usePrimaryEnvironmentId } from "../../state/environments";
 import { cn } from "~/lib/utils";
+import { useAtomCommand } from "../../hooks/useAtomCommand";
+import { threadEnvironment } from "../../state/threads";
+import { Button } from "../ui/button";
+import { Minimize2Icon } from "lucide-react";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -31,6 +36,7 @@ interface ChatHeaderProps {
   availableEditors: ReadonlyArray<EditorId>;
   rightPanelOpen: boolean;
   gitCwd: string | null;
+  activeProviderStatus: ServerProvider | null;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
   onUpdateProjectScript: (
@@ -52,6 +58,9 @@ export function shouldShowOpenInPicker(input: {
   );
 }
 
+export const shouldShowManualCompaction = (provider: ServerProvider | null): boolean =>
+  provider?.supportsManualCompaction === true;
+
 export const ChatHeader = memo(function ChatHeader({
   activeThreadEnvironmentId,
   activeThreadId,
@@ -65,12 +74,14 @@ export const ChatHeader = memo(function ChatHeader({
   availableEditors,
   rightPanelOpen,
   gitCwd,
+  activeProviderStatus,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
   onDeleteProjectScript,
 }: ChatHeaderProps) {
   const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const compactThread = useAtomCommand(threadEnvironment.compact, "context compaction");
   const showOpenInPicker = shouldShowOpenInPicker({
     activeProjectName,
     activeThreadEnvironmentId,
@@ -100,6 +111,22 @@ export const ChatHeader = memo(function ChatHeader({
           rightPanelOpen ? "pr-0" : "pr-16",
         )}
       >
+        {shouldShowManualCompaction(activeProviderStatus) && (
+          <Tooltip>
+            <TooltipTrigger
+              render={<Button variant="ghost" size="icon" aria-label="Compact context" />}
+              onClick={() =>
+                void compactThread({
+                  environmentId: activeThreadEnvironmentId,
+                  input: { threadId: activeThreadId },
+                })
+              }
+            >
+              <Minimize2Icon className="size-4" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Compact context</TooltipPopup>
+          </Tooltip>
+        )}
         {activeProjectScripts && (
           <ProjectScriptsControl
             scripts={activeProjectScripts}

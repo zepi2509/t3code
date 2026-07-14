@@ -58,6 +58,10 @@ export interface ProviderServiceShape {
     input: ProviderInterruptTurnInput,
   ) => Effect.Effect<void, ProviderServiceError>;
 
+  readonly compactThread?: (input: {
+    readonly threadId: ThreadId;
+  }) => Effect.Effect<void, ProviderServiceError>;
+
   /**
    * Respond to a provider approval request.
    */
