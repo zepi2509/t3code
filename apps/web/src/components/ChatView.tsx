@@ -3924,10 +3924,7 @@ function ChatViewContent(props: ChatViewProps) {
     ],
   );
 
-  const onSend = async (
-    e?: { preventDefault: () => void },
-    deliveryMode?: TurnDeliveryMode,
-  ) => {
+  const onSend = async (e?: { preventDefault: () => void }, deliveryMode?: TurnDeliveryMode) => {
     e?.preventDefault();
     if (
       !activeThread ||
@@ -4238,6 +4235,9 @@ function ChatViewContent(props: ChatViewProps) {
         failure = startResult;
       } else {
         turnStartSucceeded = true;
+        if (deliveryMode === "steer") {
+          toastManager.add({ type: "success", title: "Steered the current turn" });
+        }
       }
     }
 

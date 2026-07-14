@@ -737,10 +737,6 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
               detail: { steering: event.steering, followUp: event.followUp },
             },
           });
-          const queuedMessages = [
-            ...event.steering.map((message) => `Steering queued: ${message}`),
-            ...event.followUp.map((message) => `Follow-up queued: ${message}`),
-          ];
           const queueStamp = yield* makeEventStamp();
           yield* offerRuntimeEvent({
             ...queueStamp,
@@ -751,10 +747,16 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             type: "provider.ui",
             payload: {
               effect: {
-                method: "setStatus",
-                statusKey: "pi-queue",
-                ...(queuedMessages.length > 0
-                  ? { statusText: queuedMessages.join(" · ").slice(0, 400) }
+                method: "setWidget",
+                widgetKey: "pi-follow-up-queue",
+                widgetPlacement: "aboveEditor",
+                ...(event.followUp.length > 0
+                  ? {
+                      widgetLines: [
+                        "Queued messages",
+                        ...event.followUp.map((message, index) => `${index + 1}. ${message}`),
+                      ],
+                    }
                   : {}),
               },
             },
