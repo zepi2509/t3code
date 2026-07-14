@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { formatPendingPrimaryActionLabel } from "./ComposerPrimaryActions";
+import {
+  formatPendingPrimaryActionLabel,
+  MID_TURN_DELIVERY_ACTIONS,
+} from "./ComposerPrimaryActions";
+
+it("offers explicit mid-turn delivery choices", () => {
+  expect(MID_TURN_DELIVERY_ACTIONS).toEqual([
+    { mode: "steer", label: "Steer now" },
+    { mode: "follow-up", label: "Send after completion" },
+  ]);
+});
 
 describe("formatPendingPrimaryActionLabel", () => {
   it("returns 'Submitting...' while responding", () => {

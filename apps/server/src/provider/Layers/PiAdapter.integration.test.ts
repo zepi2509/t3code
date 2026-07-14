@@ -86,6 +86,10 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
     asResponse({ type: "response", id: "x", command: "steer", success: true }),
   );
   responses.set(
+    "follow_up",
+    asResponse({ type: "response", id: "x", command: "follow_up", success: true }),
+  );
+  responses.set(
     "get_commands",
     asResponse({
       type: "response",
@@ -755,6 +759,29 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       expect(queueStatuses[1]).toMatchObject({
         payload: { effect: { method: "setStatus", statusKey: "pi-queue" } },
       });
+    }),
+  );
+
+  it.effect("queues a follow-up when explicitly requested mid-turn", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-follow-up");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const first = yield* adapter.sendTurn({ threadId, input: "first", attachments: [] });
+      const second = yield* adapter.sendTurn({
+        threadId,
+        input: "after this",
+        attachments: [],
+        deliveryMode: "follow-up",
+      });
+
+      expect(second.turnId).toBe(first.turnId);
+      expect(fake.commands.at(-1)).toMatchObject({ type: "follow_up", message: "after this" });
     }),
   );
 });

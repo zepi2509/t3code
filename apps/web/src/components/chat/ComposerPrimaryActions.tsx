@@ -27,8 +27,14 @@ interface ComposerPrimaryActionsProps {
   preserveComposerFocusOnPointerDown?: boolean;
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
+  onSend: (deliveryMode: "steer" | "follow-up") => void;
   onImplementPlanInNewThread: () => void;
 }
+
+export const MID_TURN_DELIVERY_ACTIONS = [
+  { mode: "steer", label: "Steer now" },
+  { mode: "follow-up", label: "Send after completion" },
+] as const;
 
 export const formatPendingPrimaryActionLabel = (input: {
   compact: boolean;
@@ -66,6 +72,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   preserveComposerFocusOnPointerDown = false,
   onPreviousPendingQuestion,
   onInterrupt,
+  onSend,
   onImplementPlanInNewThread,
 }: ComposerPrimaryActionsProps) {
   const pointerFocusProps = preserveComposerFocusOnPointerDown
@@ -127,23 +134,28 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     return (
       <div className="flex items-center gap-1.5">
         {hasSendableContent ? (
-          <button
-            type="submit"
-            className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-primary/90 text-primary-foreground transition-all duration-150 hover:scale-105 hover:bg-primary disabled:opacity-30"
-            {...pointerFocusProps}
-            disabled={isSendBusy || isConnecting || isEnvironmentUnavailable}
-            aria-label="Steer current turn"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path
-                d="M7 11.5V2.5M7 2.5L3 6.5M7 2.5L11 6.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  type="button"
+                  size="sm"
+                  className="rounded-full"
+                  {...pointerFocusProps}
+                  disabled={isSendBusy || isConnecting || isEnvironmentUnavailable}
+                />
+              }
+            >
+              Send <ChevronDownIcon className="size-3.5" />
+            </MenuTrigger>
+            <MenuPopup align="end" side="top">
+              {MID_TURN_DELIVERY_ACTIONS.map((action) => (
+                <MenuItem key={action.mode} onClick={() => onSend(action.mode)}>
+                  {action.label}
+                </MenuItem>
+              ))}
+            </MenuPopup>
+          </Menu>
         ) : null}
         <button
           type="button"

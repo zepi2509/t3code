@@ -19,6 +19,7 @@ import {
   ProviderInteractionMode,
   ProviderDriverKind,
   RuntimeMode,
+  type TurnDeliveryMode,
   TerminalOpenInput,
 } from "@t3tools/contracts";
 import {
@@ -3923,7 +3924,10 @@ function ChatViewContent(props: ChatViewProps) {
     ],
   );
 
-  const onSend = async (e?: { preventDefault: () => void }) => {
+  const onSend = async (
+    e?: { preventDefault: () => void },
+    deliveryMode?: TurnDeliveryMode,
+  ) => {
     e?.preventDefault();
     if (
       !activeThread ||
@@ -4225,6 +4229,7 @@ function ChatViewContent(props: ChatViewProps) {
           titleSeed: title,
           runtimeMode,
           interactionMode,
+          ...(deliveryMode !== undefined ? { deliveryMode } : {}),
           ...(bootstrap ? { bootstrap } : {}),
           createdAt: messageCreatedAt,
         },

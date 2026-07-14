@@ -1549,6 +1549,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     const command = buildPiTurnCommand({
       isMidTurn,
       isExtensionCommand: extensionCommand,
+      deliveryMode: input.deliveryMode,
       message: promptText,
       images,
     });

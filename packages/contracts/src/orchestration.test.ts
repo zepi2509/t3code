@@ -247,6 +247,20 @@ it.effect("preserves explicit provider and runtime mode in thread.turn.start", (
   }),
 );
 
+it.effect("preserves explicit mid-turn delivery mode in thread.turn.start", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeThreadTurnStartCommand({
+      type: "thread.turn.start",
+      commandId: "cmd-turn-delivery",
+      threadId: "thread-1",
+      message: { messageId: "msg-delivery", role: "user", text: "next", attachments: [] },
+      deliveryMode: "follow-up",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    assert.strictEqual(parsed.deliveryMode, "follow-up");
+  }),
+);
+
 it.effect("accepts bootstrap metadata in thread.turn.start", () =>
   Effect.gen(function* () {
     const parsed = yield* decodeThreadTurnStartCommand({
