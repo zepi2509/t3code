@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   formatPendingPrimaryActionLabel,
   MID_TURN_DELIVERY_ACTIONS,
+  midTurnPrimaryDeliveryMode,
 } from "./ComposerPrimaryActions";
 
 it("offers explicit mid-turn delivery choices", () => {
@@ -10,6 +11,12 @@ it("offers explicit mid-turn delivery choices", () => {
     { mode: "steer", label: "Steer now" },
     { mode: "follow-up", label: "Send after completion" },
   ]);
+});
+
+it("changes the primary mid-turn action while Ctrl or Cmd is held", () => {
+  expect(midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: false })).toBe("steer");
+  expect(midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false })).toBe("follow-up");
+  expect(midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: true })).toBe("follow-up");
 });
 
 describe("formatPendingPrimaryActionLabel", () => {

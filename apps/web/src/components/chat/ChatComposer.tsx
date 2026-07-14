@@ -344,6 +344,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
     isComplete: boolean;
   } | null;
   isRunning: boolean;
+  supportsMidTurnDelivery: boolean;
   showPlanFollowUpPrompt: boolean;
   promptHasText: boolean;
   isSendBusy: boolean;
@@ -362,7 +363,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         <ContextWindowMeter
           usage={props.activeContextWindow}
           providerDisplayName={props.activeThreadProviderDisplayName}
-          onCompact={props.onCompact}
+          {...(props.onCompact ? { onCompact: props.onCompact } : {})}
         />
       ) : null}
       {props.isPreparingWorktree ? (
@@ -372,6 +373,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         compact={props.compact}
         pendingAction={props.pendingAction}
         isRunning={props.isRunning}
+        supportsMidTurnDelivery={props.supportsMidTurnDelivery}
         showPlanFollowUpPrompt={props.showPlanFollowUpPrompt}
         promptHasText={props.promptHasText}
         isSendBusy={props.isSendBusy}
@@ -1777,6 +1779,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
     if (
       phase === "running" &&
+      selectedProvider === "pi" &&
       resolveShortcutCommand(event, keybindings) === "composer.sendAfterCompletion"
     ) {
       submitComposer(undefined, "follow-up");
@@ -2215,6 +2218,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       compact
                       pendingAction={pendingPrimaryAction}
                       isRunning={false}
+                      supportsMidTurnDelivery={false}
                       showPlanFollowUpPrompt={false}
                       promptHasText={false}
                       isSendBusy={isSendBusy}
@@ -2480,6 +2484,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     compact
                     pendingAction={pendingPrimaryAction}
                     isRunning={false}
+                    supportsMidTurnDelivery={false}
                     showPlanFollowUpPrompt={false}
                     promptHasText={false}
                     isSendBusy={isSendBusy}
@@ -2590,13 +2595,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   compact={isComposerPrimaryActionsCompact}
                   activeContextWindow={activeContextWindow}
                   activeThreadProviderDisplayName={activeThreadProviderDisplayName}
-                  onCompact={
-                    canCompactContext(supportsManualCompaction, activeContextWindow !== null)
-                      ? handleCompact
-                      : undefined
-                  }
+                  {...(canCompactContext(supportsManualCompaction, activeContextWindow !== null)
+                    ? { onCompact: handleCompact }
+                    : {})}
                   pendingAction={pendingPrimaryAction}
                   isRunning={phase === "running"}
+                  supportsMidTurnDelivery={selectedProvider === "pi"}
                   showPlanFollowUpPrompt={pendingUserInputs.length === 0 && showPlanFollowUpPrompt}
                   promptHasText={prompt.trim().length > 0}
                   isSendBusy={isSendBusy}
