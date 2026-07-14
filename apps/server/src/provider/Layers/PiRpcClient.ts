@@ -7,8 +7,13 @@ import type {
   RpcExtensionUIResponse,
   RpcResponse,
 } from "@earendil-works/pi-coding-agent";
-import type { ModelSelection, ServerProviderModel } from "@t3tools/contracts";
-import type { ModelCapabilities } from "@t3tools/contracts";
+import type {
+  ModelCapabilities,
+  ModelSelection,
+  ServerProviderModel,
+  ServerProviderSkill,
+  ServerProviderSlashCommand,
+} from "@t3tools/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -20,10 +25,24 @@ import { buildSelectOptionDescriptor } from "../providerSnapshot.ts";
 import { createModelCapabilities, getModelSelectionStringOptionValue } from "@t3tools/shared/model";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 
+export type PiAgentEvent =
+  | AgentSessionEvent
+  | {
+      readonly type: "extension_error";
+      readonly extensionPath: string;
+      readonly event: string;
+      readonly error: string;
+    };
+
 export type PiStdoutMessage =
   | { readonly _tag: "response"; readonly id: string | undefined; readonly response: RpcResponse }
   | { readonly _tag: "extension-ui"; readonly request: RpcExtensionUIRequest }
-  | { readonly _tag: "event"; readonly event: AgentSessionEvent };
+  | { readonly _tag: "event"; readonly event: PiAgentEvent }
+  | {
+      readonly _tag: "unknown";
+      readonly payload: Record<string, unknown>;
+      readonly reason: string;
+    };
 
 export function tryParsePiJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
@@ -41,39 +60,200 @@ export function tryParsePiJsonObject(text: string): Record<string, unknown> | nu
   }
 }
 
+const PI_EVENT_TYPES = new Set([
+  "agent_start",
+  "agent_end",
+  "agent_settled",
+  "turn_start",
+  "turn_end",
+  "message_start",
+  "message_update",
+  "message_end",
+  "tool_execution_start",
+  "tool_execution_update",
+  "tool_execution_end",
+  "queue_update",
+  "compaction_start",
+  "compaction_end",
+  "auto_retry_start",
+  "auto_retry_end",
+  "extension_error",
+  // Pi 0.80.6 also emits these state/session events from AgentSession.
+  "entry_appended",
+  "session_info_changed",
+  "thinking_level_changed",
+]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === "string");
+
+function parseExtensionUIRequest(msg: Record<string, unknown>): RpcExtensionUIRequest | null {
+  if (typeof msg["id"] !== "string" || typeof msg["method"] !== "string") return null;
+  const method = msg["method"];
+  const timeoutValid = msg["timeout"] === undefined || typeof msg["timeout"] === "number";
+  if (!timeoutValid) return null;
+  switch (method) {
+    case "select":
+      return typeof msg["title"] === "string" && isStringArray(msg["options"])
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "confirm":
+      return typeof msg["title"] === "string" && typeof msg["message"] === "string"
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "input":
+      return typeof msg["title"] === "string" &&
+        (msg["placeholder"] === undefined || typeof msg["placeholder"] === "string")
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "editor":
+      return typeof msg["title"] === "string" &&
+        (msg["prefill"] === undefined || typeof msg["prefill"] === "string")
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "notify":
+      return typeof msg["message"] === "string" &&
+        (msg["notifyType"] === undefined ||
+          msg["notifyType"] === "info" ||
+          msg["notifyType"] === "warning" ||
+          msg["notifyType"] === "error")
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "setStatus":
+      return typeof msg["statusKey"] === "string" &&
+        (msg["statusText"] === undefined || typeof msg["statusText"] === "string")
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "setWidget":
+      return typeof msg["widgetKey"] === "string" &&
+        (msg["widgetLines"] === undefined || isStringArray(msg["widgetLines"])) &&
+        (msg["widgetPlacement"] === undefined ||
+          msg["widgetPlacement"] === "aboveEditor" ||
+          msg["widgetPlacement"] === "belowEditor")
+        ? (msg as RpcExtensionUIRequest)
+        : null;
+    case "setTitle":
+      return typeof msg["title"] === "string" ? (msg as RpcExtensionUIRequest) : null;
+    case "set_editor_text":
+      return typeof msg["text"] === "string" ? (msg as RpcExtensionUIRequest) : null;
+    default:
+      return null;
+  }
+}
+
+function isValidPiEvent(msg: Record<string, unknown>, type: string): boolean {
+  switch (type) {
+    case "agent_start":
+    case "agent_settled":
+    case "turn_start":
+      return true;
+    case "agent_end":
+      return Array.isArray(msg["messages"]) && typeof msg["willRetry"] === "boolean";
+    case "turn_end":
+      return isRecord(msg["message"]) && Array.isArray(msg["toolResults"]);
+    case "message_start":
+    case "message_end":
+      return isRecord(msg["message"]);
+    case "message_update":
+      return isRecord(msg["message"]) && isRecord(msg["assistantMessageEvent"]);
+    case "tool_execution_start":
+      return typeof msg["toolCallId"] === "string" && typeof msg["toolName"] === "string";
+    case "tool_execution_update":
+      return (
+        typeof msg["toolCallId"] === "string" &&
+        typeof msg["toolName"] === "string" &&
+        msg["partialResult"] !== undefined
+      );
+    case "tool_execution_end":
+      return (
+        typeof msg["toolCallId"] === "string" &&
+        typeof msg["toolName"] === "string" &&
+        typeof msg["isError"] === "boolean" &&
+        msg["result"] !== undefined
+      );
+    case "queue_update":
+      return isStringArray(msg["steering"]) && isStringArray(msg["followUp"]);
+    case "compaction_start":
+      return (
+        msg["reason"] === "manual" || msg["reason"] === "threshold" || msg["reason"] === "overflow"
+      );
+    case "compaction_end":
+      return (
+        (msg["reason"] === "manual" ||
+          msg["reason"] === "threshold" ||
+          msg["reason"] === "overflow") &&
+        typeof msg["aborted"] === "boolean" &&
+        typeof msg["willRetry"] === "boolean"
+      );
+    case "auto_retry_start":
+      return (
+        typeof msg["attempt"] === "number" &&
+        typeof msg["maxAttempts"] === "number" &&
+        typeof msg["delayMs"] === "number" &&
+        typeof msg["errorMessage"] === "string"
+      );
+    case "auto_retry_end":
+      return typeof msg["success"] === "boolean" && typeof msg["attempt"] === "number";
+    case "extension_error":
+      return (
+        typeof msg["extensionPath"] === "string" &&
+        typeof msg["event"] === "string" &&
+        typeof msg["error"] === "string"
+      );
+    case "entry_appended":
+      return isRecord(msg["entry"]);
+    case "session_info_changed":
+      return msg["name"] === undefined || typeof msg["name"] === "string";
+    case "thinking_level_changed":
+      return typeof msg["level"] === "string";
+    default:
+      return false;
+  }
+}
+
 export function classifyPiStdoutMessage(msg: Record<string, unknown>): PiStdoutMessage | null {
   const type = msg["type"];
+  if (typeof type !== "string" || type.length === 0) return null;
   if (type === "response") {
+    if (typeof msg["command"] !== "string" || typeof msg["success"] !== "boolean") {
+      return { _tag: "unknown", payload: msg, reason: "Malformed Pi RPC response" };
+    }
     return {
       _tag: "response",
-      id: typeof msg["id"] === "string" ? (msg["id"] as string) : undefined,
+      id: typeof msg["id"] === "string" ? msg["id"] : undefined,
       response: msg as unknown as RpcResponse,
     };
   }
   if (type === "extension_ui_request") {
-    if (typeof msg["id"] !== "string" || typeof msg["method"] !== "string") return null;
-    return { _tag: "extension-ui", request: msg as unknown as RpcExtensionUIRequest };
+    const request = parseExtensionUIRequest(msg);
+    return request
+      ? { _tag: "extension-ui", request }
+      : { _tag: "unknown", payload: msg, reason: "Unknown or malformed Pi extension UI request" };
   }
-  if (typeof type === "string" && type.length > 0) {
-    return { _tag: "event", event: msg as unknown as AgentSessionEvent };
+  if (!PI_EVENT_TYPES.has(type)) {
+    return { _tag: "unknown", payload: msg, reason: `Unknown Pi RPC event: ${type}` };
   }
-  return null;
+  return isValidPiEvent(msg, type)
+    ? { _tag: "event", event: msg as unknown as PiAgentEvent }
+    : { _tag: "unknown", payload: msg, reason: `Malformed Pi RPC event: ${type}` };
 }
 
 export function parsePiStdoutLine(line: string): PiStdoutMessage | null {
-  const msg = tryParsePiJsonObject(line);
+  const msg = tryParsePiJsonObject(line.endsWith("\r") ? line.slice(0, -1) : line);
   return msg ? classifyPiStdoutMessage(msg) : null;
 }
 
 // only text_delta is user-visible; thinking/toolcall deltas leak raw json
-export function extractAssistantTextDelta(event: AgentSessionEvent): string | null {
+export function extractAssistantTextDelta(event: PiAgentEvent): string | null {
   if (event.type !== "message_update") return null;
   const assistantEvent = event.assistantMessageEvent;
   if (!assistantEvent || assistantEvent.type !== "text_delta") return null;
   return typeof assistantEvent.delta === "string" ? assistantEvent.delta : null;
 }
 
-export function extractReasoningTextDelta(event: AgentSessionEvent): string | null {
+export function extractReasoningTextDelta(event: PiAgentEvent): string | null {
   if (event.type !== "message_update") return null;
   const assistantEvent = event.assistantMessageEvent;
   if (!assistantEvent || assistantEvent.type !== "thinking_delta") return null;
@@ -114,12 +294,13 @@ export function piImageContentFromBytes(input: {
 // fire-and-forget, would be silently dropped
 export function buildPiTurnCommand(args: {
   readonly isMidTurn: boolean;
+  readonly isExtensionCommand?: boolean;
   readonly message: string;
   readonly images?: ReadonlyArray<PiImageContent>;
 }): PiTurnCommand {
   const hasImages = args.images !== undefined && args.images.length > 0;
   const images = hasImages ? [...(args.images as ReadonlyArray<PiImageContent>)] : undefined;
-  return args.isMidTurn
+  return args.isMidTurn && !args.isExtensionCommand
     ? { type: "steer", message: args.message, ...(images ? { images } : {}) }
     : { type: "prompt", message: args.message, ...(images ? { images } : {}) };
 }
@@ -131,6 +312,7 @@ const PI_THINKING_LEVELS = [
   { value: "medium", label: "Medium", isDefault: true },
   { value: "high", label: "High" },
   { value: "xhigh", label: "Extra High" },
+  { value: "max", label: "Max" },
 ] as const;
 
 export type PiThinkingLevel = Extract<RpcCommand, { type: "set_thinking_level" }>["level"];
@@ -177,21 +359,30 @@ export function planPiModelSwitch(
   return { kind: "switch", provider: parts.provider, modelId: parts.id, slug: requestedModel };
 }
 
-export function piModelCapabilities(
-  model: boolean | Pick<ModelInfo, "provider" | "id" | "reasoning">,
-): ModelCapabilities {
-  const reasoning = typeof model === "boolean" ? model : Boolean(model.reasoning);
-  const supportsExtraHigh =
-    typeof model === "boolean" || (model.provider === "openai" && model.id === "codex-max");
+export function supportedPiThinkingLevels(
+  model: Pick<ModelInfo, "reasoning"> & {
+    readonly thinkingLevelMap?: Partial<Record<PiThinkingLevel, unknown>>;
+  },
+): ReadonlyArray<PiThinkingLevel> {
+  if (!model.reasoning) return ["off"];
+  return PI_THINKING_LEVEL_VALUES.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    return level !== "xhigh" && level !== "max" ? true : mapped !== undefined;
+  });
+}
+
+export function piModelCapabilities(model: ModelInfo): ModelCapabilities {
+  const levels = supportedPiThinkingLevels(model);
   return createModelCapabilities({
-    optionDescriptors: reasoning
+    optionDescriptors: model.reasoning
       ? [
           buildSelectOptionDescriptor({
             id: "thinking",
             label: "Thinking",
-            options: PI_THINKING_LEVELS.filter(
-              (level) => level.value !== "xhigh" || supportsExtraHigh,
-            ).map((level) => ({ ...level })),
+            options: PI_THINKING_LEVELS.filter((level) => levels.includes(level.value)).map(
+              (level) => ({ ...level }),
+            ),
           }),
         ]
       : [],
@@ -234,6 +425,82 @@ export function extractAvailableModels(
     if (typeof model["provider"] !== "string" || typeof model["id"] !== "string") return [];
     return [model as unknown as ModelInfo];
   });
+}
+
+export interface PiCommandInfo {
+  readonly name: string;
+  readonly description?: string;
+  readonly source: "extension" | "prompt" | "skill";
+  readonly path?: string;
+  readonly scope?: string;
+}
+
+export function extractPiCommands(response: RpcResponse | undefined): ReadonlyArray<PiCommandInfo> {
+  const commands = piResponseData(response)?.["commands"];
+  if (!Array.isArray(commands)) return [];
+  return commands.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const source = entry["source"];
+    if (
+      typeof entry["name"] !== "string" ||
+      (source !== "extension" && source !== "prompt" && source !== "skill")
+    )
+      return [];
+    const sourceInfo = isRecord(entry["sourceInfo"]) ? entry["sourceInfo"] : entry;
+    return [
+      {
+        name: entry["name"],
+        ...(typeof entry["description"] === "string" ? { description: entry["description"] } : {}),
+        source,
+        ...(typeof sourceInfo["path"] === "string" ? { path: sourceInfo["path"] } : {}),
+        ...(typeof sourceInfo["scope"] === "string"
+          ? { scope: sourceInfo["scope"] }
+          : typeof sourceInfo["location"] === "string"
+            ? { scope: sourceInfo["location"] }
+            : {}),
+      },
+    ];
+  });
+}
+
+export function piCommandsToProviderResources(commands: ReadonlyArray<PiCommandInfo>): {
+  readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
+  readonly skills: ReadonlyArray<ServerProviderSkill>;
+} {
+  const slashCommands: ServerProviderSlashCommand[] = [];
+  const skills: ServerProviderSkill[] = [];
+  for (const command of commands) {
+    const metadata = {
+      source: command.source,
+      ...(command.path ? { sourcePath: command.path } : {}),
+      ...(command.scope ? { sourceScope: command.scope } : {}),
+    } as const;
+    if (command.source === "skill") {
+      const name = command.name.startsWith("skill:") ? command.name.slice(6) : command.name;
+      if (name.length === 0) continue;
+      skills.push({
+        name,
+        ...(command.description ? { description: command.description } : {}),
+        path: command.path ?? `<pi-skill:${name}>`,
+        ...(command.scope ? { scope: command.scope } : {}),
+        enabled: true,
+        displayName: name,
+        ...(command.description ? { shortDescription: command.description } : {}),
+      });
+      continue;
+    }
+    slashCommands.push({
+      name: command.name,
+      ...(command.description ? { description: command.description } : {}),
+      ...metadata,
+    });
+  }
+  return { slashCommands, skills };
+}
+
+export function isPiExtensionCommand(message: string, commands: ReadonlySet<string>): boolean {
+  const match = /^\/([^\s]+)/.exec(message.trimStart());
+  return match?.[1] !== undefined && commands.has(match[1]);
 }
 
 // approval-gate handshake: the sentinel command's presence confirms the gate loaded
@@ -354,15 +621,28 @@ export const makePiRpcTransport = (options: MakePiRpcTransportOptions) =>
     const handleLine = (line: string): Effect.Effect<void> =>
       Effect.gen(function* () {
         const message = parsePiStdoutLine(line);
-        if (!message) return;
+        if (!message) {
+          yield* Effect.logWarning("Ignored malformed Pi RPC JSONL frame", { line });
+          return;
+        }
+        if (message._tag === "unknown") {
+          yield* Effect.logWarning(message.reason, { payload: message.payload });
+          yield* Queue.offer(messages, message);
+          return;
+        }
         if (message._tag === "response") {
           if (message.id !== undefined) {
             const deferred = pendingRequests.get(message.id);
             if (deferred) {
               pendingRequests.delete(message.id);
               yield* Deferred.succeed(deferred, message.response);
+              return;
             }
           }
+          yield* Effect.logWarning("Unmatched Pi RPC response", {
+            id: message.id,
+            command: message.response.command,
+          });
           return;
         }
         yield* Queue.offer(messages, message);
@@ -385,7 +665,14 @@ export const makePiRpcTransport = (options: MakePiRpcTransportOptions) =>
 
     yield* child.stdout.pipe(
       Stream.decodeText(),
-      Stream.splitLines,
+      Stream.mapAccumArray(
+        () => "",
+        (buffer, chunks) => {
+          const records = `${buffer}${chunks.join("")}`.split("\n");
+          return [records.pop() ?? "", records] as const;
+        },
+        { onHalt: (buffer) => (buffer.length > 0 ? [buffer] : []) },
+      ),
       Stream.runForEach(handleLine),
       Effect.ignore,
       Effect.ensuring(onProcessExit),

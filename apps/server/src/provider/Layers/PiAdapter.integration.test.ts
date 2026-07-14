@@ -65,6 +65,27 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
     }),
   );
   responses.set(
+    "get_session_stats",
+    asResponse({
+      type: "response",
+      id: "x",
+      command: "get_session_stats",
+      success: true,
+      data: {
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        toolCalls: 0,
+      },
+    }),
+  );
+  responses.set(
+    "prompt",
+    asResponse({ type: "response", id: "x", command: "prompt", success: true }),
+  );
+  responses.set(
+    "steer",
+    asResponse({ type: "response", id: "x", command: "steer", success: true }),
+  );
+  responses.set(
     "get_commands",
     asResponse({
       type: "response",
@@ -84,7 +105,11 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
       Effect.sync(() => {
         extensionResponses.push(response);
       }),
-    request: (command) => Effect.succeed(responses.get((command as { type: string }).type)),
+    request: (command) =>
+      Effect.sync(() => {
+        commands.push(command);
+        return responses.get((command as { type: string }).type);
+      }),
     messages,
     kill: Effect.void,
   };
@@ -161,7 +186,7 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         type: "message_update",
         assistantMessageEvent: { type: "text_delta", delta: "hi" },
       } as AgentSessionEvent);
-      yield* fake.pushEvent({ type: "agent_end" } as AgentSessionEvent);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
 
       const events = yield* Fiber.join(collected.fiber).pipe(
         Effect.flatMap(() => Ref.get(collected.store)),
@@ -208,7 +233,7 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         type: "message_update",
         assistantMessageEvent: { type: "thinking_delta", delta: "why" },
       } as AgentSessionEvent);
-      yield* fake.pushEvent({ type: "agent_end" } as AgentSessionEvent);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
 
       const events = yield* Fiber.join(collected.fiber).pipe(
         Effect.flatMap(() => Ref.get(collected.store)),
@@ -220,48 +245,51 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
     }),
   );
 
-  it.effect(
-    "does not finalize the turn on agent_end willRetry; completes on the terminal end",
-    () =>
-      Effect.gen(function* () {
-        const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
-        const threadId = ThreadId.make("pi-int-retry");
-        const collected = yield* collectEvents(
-          adapter,
-          threadId,
-          (event) => event.type === "turn.completed",
-        );
-        yield* adapter.startSession({
-          threadId,
-          provider: PI,
-          cwd: process.cwd(),
-          runtimeMode: "full-access",
-        });
-        yield* adapter.sendTurn({ threadId, input: "retry please", attachments: [] });
-        yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
-        yield* fake.pushEvent({
-          type: "agent_end",
-          messages: [],
-          willRetry: true,
-        } as AgentSessionEvent);
-        yield* fake.pushEvent({
-          type: "agent_end",
-          messages: [],
-          willRetry: false,
-        } as AgentSessionEvent);
+  it.effect("does not finalize on agent_end; completion waits for agent_settled", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-retry");
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
+      );
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "retry please", attachments: [] });
+      yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "agent_end",
+        messages: [],
+        willRetry: true,
+      } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "agent_end",
+        messages: [],
+        willRetry: false,
+      } as AgentSessionEvent);
+      yield* Effect.yieldNow;
+      expect(
+        (yield* Ref.get(collected.store)).some((event) => event.type === "turn.completed"),
+      ).toBe(false);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
 
-        const events = yield* Fiber.join(collected.fiber).pipe(
-          Effect.flatMap(() => Ref.get(collected.store)),
-        );
-        const completions = events.filter((event) => event.type === "turn.completed");
-        expect(completions).toHaveLength(1);
-        const completed = completions[0];
-        if (completed && completed.type === "turn.completed") {
-          expect(completed.payload.state).toBe("completed");
-        }
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      const completions = events.filter((event) => event.type === "turn.completed");
+      expect(completions).toHaveLength(1);
+      const completed = completions[0];
+      if (completed && completed.type === "turn.completed") {
+        expect(completed.payload.state).toBe("completed");
+      }
 
-        yield* adapter.stopSession(threadId);
-      }),
+      yield* adapter.stopSession(threadId);
+    }),
   );
 
   it.effect("maps a tool execution lifecycle to item events", () =>
@@ -288,20 +316,37 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         args: { command: "ls" },
       } as AgentSessionEvent);
       yield* fake.pushEvent({
+        type: "tool_execution_update",
+        toolCallId: "t1",
+        toolName: "bash",
+        args: { command: "ls" },
+        partialResult: {
+          content: [{ type: "text", text: "accumulated" }],
+          details: { progress: 50 },
+        },
+      } as AgentSessionEvent);
+      yield* fake.pushEvent({
         type: "tool_execution_end",
         toolCallId: "t1",
         toolName: "bash",
         result: "file.txt",
         isError: false,
       } as AgentSessionEvent);
-      yield* fake.pushEvent({ type: "agent_end" } as AgentSessionEvent);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
 
       const events = yield* Fiber.join(collected.fiber).pipe(
         Effect.flatMap(() => Ref.get(collected.store)),
       );
       const started = events.find((event) => event.type === "item.started");
+      const updated = events.find((event) => event.type === "item.updated");
       const completed = events.find((event) => event.type === "item.completed");
       expect(started).toBeDefined();
+      expect(updated?.payload.data).toMatchObject({
+        partialResult: {
+          content: [{ type: "text", text: "accumulated" }],
+          details: { progress: 50 },
+        },
+      });
       expect(completed).toBeDefined();
       if (started && started.type === "item.started") {
         expect(started.payload.itemType).toBe("command_execution");
@@ -346,7 +391,7 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         type: "extension_ui_request",
         id: "ui-1",
         method: "confirm",
-        title: "bash",
+        title: "[t3-tool-approval] Run bash?",
         message: "ls -la",
       } as RpcExtensionUIRequest);
 
@@ -432,6 +477,158 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
     }),
   );
 
+  it.effect(
+    "bridges every RPC extension UI method without turning normal confirm into approval",
+    () =>
+      Effect.gen(function* () {
+        const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+        const threadId = ThreadId.make("pi-int-all-extension-ui");
+        const store = yield* Ref.make<Array<ProviderRuntimeEvent>>([]);
+        const ready = yield* Deferred.make<void>();
+        const fiber = yield* adapter.streamEvents.pipe(
+          Stream.filter((event) => event.threadId === threadId),
+          Stream.runForEach((event) =>
+            Ref.updateAndGet(store, (events) => [...events, event]).pipe(
+              Effect.flatMap((events) => {
+                const dialogs = events.filter(
+                  (entry) => entry.type === "user-input.requested",
+                ).length;
+                const effects = events.filter((entry) => entry.type === "provider.ui").length;
+                return dialogs === 4 && effects === 5
+                  ? Deferred.succeed(ready, undefined).pipe(Effect.ignore)
+                  : Effect.void;
+              }),
+            ),
+          ),
+          Effect.forkChild,
+        );
+        yield* adapter.startSession({
+          threadId,
+          provider: PI,
+          cwd: process.cwd(),
+          runtimeMode: "full-access",
+        });
+
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "select",
+          method: "select",
+          title: "Pick",
+          options: ["A", "B"],
+          timeout: 1000,
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "confirm",
+          method: "confirm",
+          title: "Clear session?",
+          message: "All messages will be lost.",
+          timeout: 2000,
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "input",
+          method: "input",
+          title: "Name",
+          placeholder: "Ada",
+          timeout: 3000,
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "editor",
+          method: "editor",
+          title: "Edit",
+          prefill: "line 1\nline 2",
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "notify",
+          method: "notify",
+          message: "Heads up",
+          notifyType: "warning",
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "status",
+          method: "setStatus",
+          statusKey: "ext",
+          statusText: "running",
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "widget",
+          method: "setWidget",
+          widgetKey: "ext",
+          widgetLines: ["one", "two"],
+          widgetPlacement: "belowEditor",
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "title",
+          method: "setTitle",
+          title: "Pi title",
+        });
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id: "editor-text",
+          method: "set_editor_text",
+          text: "composer text",
+        });
+        yield* Deferred.await(ready);
+
+        const events = yield* Ref.get(store);
+        expect(events.some((event) => event.type === "request.opened")).toBe(false);
+        const dialogs = events.filter(
+          (event): event is Extract<ProviderRuntimeEvent, { type: "user-input.requested" }> =>
+            event.type === "user-input.requested",
+        );
+        expect(dialogs.map((event) => event.payload.questions[0]?.inputKind)).toEqual([
+          "select",
+          "confirm",
+          "input",
+          "editor",
+        ]);
+        expect(dialogs[1]?.payload.questions[0]).toMatchObject({
+          title: "Clear session?",
+          message: "All messages will be lost.",
+          timeoutMs: 2000,
+        });
+        expect(dialogs[2]?.payload.questions[0]).toMatchObject({ placeholder: "Ada" });
+        expect(dialogs[3]?.payload.questions[0]).toMatchObject({
+          prefill: "line 1\nline 2",
+          multiline: true,
+        });
+
+        const answers: ReadonlyArray<unknown> = ["B", "No", "Ada Lovelace", null];
+        for (let index = 0; index < dialogs.length; index += 1) {
+          const dialog = dialogs[index]!;
+          const questionId = dialog.payload.questions[0]!.id;
+          yield* adapter.respondToUserInput(
+            threadId,
+            ApprovalRequestId.make(String(dialog.requestId)),
+            { [questionId]: answers[index] },
+          );
+        }
+        expect(fake.extensionResponses).toEqual([
+          { type: "extension_ui_response", id: "select", value: "B" },
+          { type: "extension_ui_response", id: "confirm", confirmed: false },
+          { type: "extension_ui_response", id: "input", value: "Ada Lovelace" },
+          { type: "extension_ui_response", id: "editor", cancelled: true },
+        ]);
+        const effects = events.flatMap((event) =>
+          event.type === "provider.ui" ? [event.payload.effect] : [],
+        );
+        expect(effects.map((effect) => effect.method)).toEqual([
+          "notify",
+          "setStatus",
+          "setWidget",
+          "setTitle",
+          "set_editor_text",
+        ]);
+        yield* Fiber.interrupt(fiber);
+      }),
+  );
+
   it.effect("fails closed when the approval gate does not load", () =>
     Effect.gen(function* () {
       const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
@@ -477,15 +674,42 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
     }),
   );
 
+  it.effect("invokes extension commands with prompt even while Pi is streaming", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      fake.setResponse(
+        "get_commands",
+        asResponse({
+          type: "response",
+          command: "get_commands",
+          success: true,
+          data: { commands: [{ name: "hello", source: "extension" }] },
+        }),
+      );
+      const threadId = ThreadId.make("pi-int-extension-command");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const first = yield* adapter.sendTurn({ threadId, input: "first", attachments: [] });
+      yield* fake.pushEvent({ type: "agent_start" } as AgentSessionEvent);
+      const second = yield* adapter.sendTurn({ threadId, input: "/hello now", attachments: [] });
+      expect(second.turnId).toBe(first.turnId);
+      expect(fake.commands.at(-2)).toMatchObject({ type: "prompt", message: "/hello now" });
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
+    }),
+  );
+
   it.effect("steers a running turn instead of opening a second turn", () =>
     Effect.gen(function* () {
       const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
       const threadId = ThreadId.make("pi-int-steer");
-      const store = yield* Ref.make<Array<ProviderRuntimeEvent>>([]);
-      const fiber = yield* adapter.streamEvents.pipe(
-        Stream.filter((event) => event.threadId === threadId),
-        Stream.runForEach((event) => Ref.update(store, (events) => [...events, event])),
-        Effect.forkChild,
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
       );
       yield* adapter.startSession({
         threadId,
@@ -497,15 +721,40 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
       const second = yield* adapter.sendTurn({ threadId, input: "steer me", attachments: [] });
       expect(second.turnId).toBe(first.turnId);
+      yield* fake.pushEvent({
+        type: "queue_update",
+        steering: ["steer me"],
+        followUp: [],
+      } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "queue_update",
+        steering: [],
+        followUp: [],
+      } as AgentSessionEvent);
 
-      yield* fake.pushEvent({ type: "agent_end" } as AgentSessionEvent);
-      yield* Effect.yieldNow;
-      yield* Fiber.interrupt(fiber);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
 
-      const events = yield* Ref.get(store);
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
       const turnStarts = events.filter((event) => event.type === "turn.started");
       expect(turnStarts.length).toBe(1);
       expect(fake.commands.some((command) => command.type === "steer")).toBe(true);
+      const queueStatuses = events.filter(
+        (event) =>
+          event.type === "provider.ui" &&
+          event.payload.effect.method === "setStatus" &&
+          event.payload.effect.statusKey === "pi-queue",
+      );
+      expect(queueStatuses).toHaveLength(2);
+      expect(queueStatuses[0]).toMatchObject({
+        payload: {
+          effect: { statusText: "Steering queued: steer me" },
+        },
+      });
+      expect(queueStatuses[1]).toMatchObject({
+        payload: { effect: { method: "setStatus", statusKey: "pi-queue" } },
+      });
     }),
   );
 });

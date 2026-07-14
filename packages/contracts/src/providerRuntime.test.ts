@@ -226,6 +226,51 @@ describe("ProviderRuntimeEvent", () => {
     expect(parsed.raw?.source).toBe("pi.rpc.extension-ui");
   });
 
+  it("decodes typed provider UI effects and Pi dialog metadata", () => {
+    const ui = decodeRuntimeEvent({
+      type: "provider.ui",
+      eventId: "event-pi-ui",
+      provider: "pi",
+      createdAt: "2026-02-28T00:00:02.000Z",
+      threadId: "thread-1",
+      payload: {
+        effect: {
+          method: "setWidget",
+          widgetKey: "ext",
+          widgetLines: ["line"],
+          widgetPlacement: "aboveEditor",
+        },
+      },
+    });
+    expect(ui.type).toBe("provider.ui");
+    if (ui.type !== "provider.ui") throw new Error("expected provider.ui");
+    expect(ui.payload.effect.method).toBe("setWidget");
+
+    const dialog = decodeRuntimeEvent({
+      type: "user-input.requested",
+      eventId: "event-pi-dialog",
+      provider: "pi",
+      createdAt: "2026-02-28T00:00:03.000Z",
+      threadId: "thread-1",
+      payload: {
+        questions: [
+          {
+            id: "q",
+            header: "Edit",
+            question: "Edit text",
+            options: [],
+            inputKind: "editor",
+            title: "Edit text",
+            prefill: "one\ntwo",
+            multiline: true,
+          },
+        ],
+      },
+    });
+    if (dialog.type !== "user-input.requested") throw new Error("expected user input");
+    expect(dialog.payload.questions[0]).toMatchObject({ inputKind: "editor", multiline: true });
+  });
+
   it("rejects an unknown pi raw source literal", () => {
     expect(() =>
       decodeRuntimeEvent({

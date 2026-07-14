@@ -143,9 +143,9 @@ describe("buildPiUserInputResponse", () => {
     ).toEqual({ type: "extension_ui_response", id: "ui-3", value: "2" });
   });
 
-  it("returns an empty value when the answer is missing", () => {
+  it("cancels when the answer is missing", () => {
     expect(
       buildPiUserInputResponse({ piId: "ui-4", questionId: "q4", method: "editor" }, {}),
-    ).toEqual({ type: "extension_ui_response", id: "ui-4", value: "" });
+    ).toEqual({ type: "extension_ui_response", id: "ui-4", cancelled: true });
   });
 });

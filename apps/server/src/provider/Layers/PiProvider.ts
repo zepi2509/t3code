@@ -2,6 +2,8 @@ import {
   type ModelCapabilities,
   type PiSettings,
   type ServerProviderModel,
+  type ServerProviderSkill,
+  type ServerProviderSlashCommand,
   ProviderDriverKind,
 } from "@t3tools/contracts";
 import { createModelCapabilities } from "@t3tools/shared/model";
@@ -23,7 +25,9 @@ import {
 } from "../providerSnapshot.ts";
 import {
   extractAvailableModels,
+  extractPiCommands,
   makePiRpcTransport,
+  piCommandsToProviderResources,
   piModelInfoToServerModel,
 } from "./PiRpcClient.ts";
 
@@ -38,6 +42,7 @@ const PI_PRESENTATION = {
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({ optionDescriptors: [] });
 
 const PI_MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+export const EXPECTED_PI_RPC_VERSION = "0.80.6";
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -58,8 +63,16 @@ const runPiVersion = (piSettings: PiSettings, environment: NodeJS.ProcessEnv) =>
     });
   });
 
-/** Discover models via a short-lived `pi --mode rpc` session; `[]` on any failure. */
-export const discoverPiModelsViaRpc = Effect.fn("discoverPiModelsViaRpc")(
+interface PiResources {
+  readonly models: ReadonlyArray<ServerProviderModel>;
+  readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
+  readonly skills: ReadonlyArray<ServerProviderSkill>;
+}
+
+const EMPTY_PI_RESOURCES: PiResources = { models: [], slashCommands: [], skills: [] };
+
+/** Discover all RPC-visible Pi resources in one short-lived session. */
+export const discoverPiResourcesViaRpc = Effect.fn("discoverPiResourcesViaRpc")(
   function* (piSettings: PiSettings, cwd: string, environment: NodeJS.ProcessEnv) {
     const transport = yield* makePiRpcTransport({
       binaryPath: piSettings.binaryPath || "pi",
@@ -68,22 +81,41 @@ export const discoverPiModelsViaRpc = Effect.fn("discoverPiModelsViaRpc")(
       env: environment,
       onExit: Effect.void,
     });
-    const response = yield* transport.request(
-      { type: "get_available_models" },
-      "pi-model-discovery",
-      PI_MODEL_DISCOVERY_TIMEOUT_MS,
-    );
-    return extractAvailableModels(response).map(piModelInfoToServerModel);
+    const [modelsResponse, commandsResponse] = yield* Effect.all([
+      transport.request(
+        { type: "get_available_models" },
+        "pi-model-discovery",
+        PI_MODEL_DISCOVERY_TIMEOUT_MS,
+      ),
+      transport.request(
+        { type: "get_commands" },
+        "pi-command-discovery",
+        PI_MODEL_DISCOVERY_TIMEOUT_MS,
+      ),
+    ]);
+    const commands = piCommandsToProviderResources(extractPiCommands(commandsResponse));
+    return {
+      models: extractAvailableModels(modelsResponse).map(piModelInfoToServerModel),
+      ...commands,
+    };
   },
   Effect.scoped,
   Effect.timeoutOption(PI_MODEL_DISCOVERY_TIMEOUT_MS),
-  Effect.map(Option.getOrElse(() => [] as ReadonlyArray<ServerProviderModel>)),
+  Effect.map(Option.getOrElse(() => EMPTY_PI_RESOURCES)),
   Effect.catchCause((cause) =>
-    Effect.logWarning("Pi model discovery failed", { cause }).pipe(
-      Effect.as([] as ReadonlyArray<ServerProviderModel>),
+    Effect.logWarning("Pi resource discovery failed", { cause }).pipe(
+      Effect.as(EMPTY_PI_RESOURCES),
     ),
   ),
 );
+
+export const discoverPiModelsViaRpc = Effect.fn("discoverPiModelsViaRpc")(function* (
+  piSettings: PiSettings,
+  cwd: string,
+  environment: NodeJS.ProcessEnv,
+) {
+  return (yield* discoverPiResourcesViaRpc(piSettings, cwd, environment)).models;
+});
 
 const modelsFromSettings = (
   piSettings: PiSettings,
@@ -212,28 +244,35 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
     });
   }
 
-  const discovered = yield* discoverPiModelsViaRpc(piSettings, cwd, environment);
-  const models = modelsFromSettings(piSettings, discovered);
+  const discovered = yield* discoverPiResourcesViaRpc(piSettings, cwd, environment);
+  const models = modelsFromSettings(piSettings, discovered.models);
 
   // no auth query in pi; get_available_models only lists once a key is configured in ~/.pi/agent
-  const authenticated = discovered.length > 0;
+  const authenticated = discovered.models.length > 0;
+  const compatibleVersion = parsedVersion === EXPECTED_PI_RPC_VERSION;
 
   return buildServerProvider({
     presentation: PI_PRESENTATION,
     enabled: piSettings.enabled,
     checkedAt,
     models,
+    slashCommands: discovered.slashCommands,
+    skills: discovered.skills,
     probe: {
       installed: true,
       version: parsedVersion,
-      status: authenticated ? "ready" : "warning",
+      status: authenticated && compatibleVersion ? "ready" : "warning",
       auth: { status: authenticated ? "authenticated" : "unknown", type: "pi" },
-      ...(authenticated
-        ? {}
-        : {
-            message:
-              "Pi is installed but no models are available. Configure a provider or API key in ~/.pi/agent (e.g. run `pi`) so models appear.",
-          }),
+      ...(!compatibleVersion
+        ? {
+            message: `T3 targets Pi RPC ${EXPECTED_PI_RPC_VERSION}, but ${parsedVersion ?? "an unknown version"} is installed. Update Pi before relying on RPC compatibility.`,
+          }
+        : authenticated
+          ? {}
+          : {
+              message:
+                "Pi is installed but no models are available. Configure a provider or API key in ~/.pi/agent (e.g. run `pi`) so models appear.",
+            }),
     },
   });
 });

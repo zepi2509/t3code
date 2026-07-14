@@ -364,6 +364,21 @@ function runtimeEventToActivities(
       ];
     }
 
+    case "provider.ui": {
+      return [
+        {
+          id: event.eventId,
+          createdAt: event.createdAt,
+          tone: "info",
+          kind: "provider.ui",
+          summary: `Provider UI: ${event.payload.effect.method}`,
+          payload: event.payload.effect,
+          turnId: toTurnId(event.turnId) ?? null,
+          ...maybeSequence,
+        },
+      ];
+    }
+
     case "runtime.warning": {
       return [
         {

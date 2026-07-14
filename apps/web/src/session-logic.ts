@@ -7,6 +7,7 @@ import {
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
   ProviderDriverKind,
+  type ProviderUIEffect,
   type ToolLifecycleItemType,
   type UserInputQuestion,
   type ThreadId,
@@ -449,15 +450,27 @@ function parseUserInputQuestions(
           };
         })
         .filter((option): option is UserInputQuestion["options"][number] => option !== null);
-      if (options.length === 0) {
-        return null;
-      }
+      const inputKind =
+        question.inputKind === "select" ||
+        question.inputKind === "confirm" ||
+        question.inputKind === "input" ||
+        question.inputKind === "editor"
+          ? question.inputKind
+          : undefined;
+      if (options.length === 0 && inputKind !== "input" && inputKind !== "editor") return null;
       return {
         id: question.id,
         header: question.header,
         question: question.question,
         options,
         multiSelect: question.multiSelect === true,
+        ...(inputKind ? { inputKind } : {}),
+        ...(typeof question.title === "string" ? { title: question.title } : {}),
+        ...(typeof question.message === "string" ? { message: question.message } : {}),
+        ...(typeof question.placeholder === "string" ? { placeholder: question.placeholder } : {}),
+        ...(typeof question.prefill === "string" ? { prefill: question.prefill } : {}),
+        ...(question.multiline === true ? { multiline: true } : {}),
+        ...(typeof question.timeoutMs === "number" ? { timeoutMs: question.timeoutMs } : {}),
       };
     })
     .filter((question): question is UserInputQuestion => question !== null);
@@ -630,6 +643,74 @@ export function hasActionableProposedPlan(
   return proposedPlan !== null && proposedPlan.implementedAt === null;
 }
 
+function stripAnsi(text: string): string {
+  // Browser UI cannot render terminal formatting.
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07/g, "");
+}
+
+export interface ProviderUIState {
+  readonly statuses: ReadonlyArray<{ key: string; text: string }>;
+  readonly widgets: ReadonlyArray<{
+    key: string;
+    lines: ReadonlyArray<string>;
+    placement: "aboveEditor" | "belowEditor";
+  }>;
+  readonly title: string | null;
+  readonly transient: ReadonlyArray<{ id: string; effect: ProviderUIEffect }>;
+}
+
+export function deriveProviderUIState(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): ProviderUIState {
+  const statuses = new Map<string, string>();
+  const widgets = new Map<
+    string,
+    { key: string; lines: ReadonlyArray<string>; placement: "aboveEditor" | "belowEditor" }
+  >();
+  const transient: Array<{ id: string; effect: ProviderUIEffect }> = [];
+  let title: string | null = null;
+  for (const activity of [...activities].toSorted(compareActivitiesByOrder)) {
+    if (
+      activity.kind !== "provider.ui" ||
+      !activity.payload ||
+      typeof activity.payload !== "object"
+    ) {
+      continue;
+    }
+    const effect = activity.payload as ProviderUIEffect;
+    switch (effect.method) {
+      case "notify":
+      case "set_editor_text":
+        transient.push({ id: activity.id, effect });
+        break;
+      case "setStatus":
+        if (effect.statusText === undefined) statuses.delete(effect.statusKey);
+        else statuses.set(effect.statusKey, stripAnsi(effect.statusText));
+        break;
+      case "setWidget":
+        if (effect.widgetLines === undefined) widgets.delete(effect.widgetKey);
+        else {
+          widgets.set(effect.widgetKey, {
+            key: effect.widgetKey,
+            lines: effect.widgetLines,
+            placement: effect.widgetPlacement,
+          });
+        }
+        break;
+      case "setTitle":
+        title = effect.title || null;
+        break;
+    }
+  }
+  return {
+    statuses: [...statuses].map(([key, text]) => ({ key, text })),
+    widgets: [...widgets.values()],
+    title,
+    transient,
+  };
+}
+
 export function deriveWorkLogEntries(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): WorkLogEntry[] {
@@ -639,6 +720,7 @@ export function deriveWorkLogEntries(
     if (activity.kind === "tool.started") continue;
     if (activity.kind === "task.started") continue;
     if (activity.kind === "context-window.updated") continue;
+    if (activity.kind === "provider.ui") continue;
     if (activity.summary === "Checkpoint captured") continue;
     if (isPlanBoundaryToolActivity(activity)) continue;
     entries.push(toDerivedWorkLogEntry(activity));

@@ -66,6 +66,21 @@ describe("resolvePendingUserInputAnswer", () => {
     ).toEqual(["Server", "Web"]);
   });
 
+  it("uses editor prefill as the initial editable answer", () => {
+    const editorQuestion = {
+      ...singleSelectQuestion,
+      inputKind: "editor" as const,
+      options: [],
+      prefill: "line 1\nline 2",
+      multiline: true,
+    };
+    expect(resolvePendingUserInputAnswer(editorQuestion, undefined)).toBe("line 1\nline 2");
+    expect(derivePendingUserInputProgress([editorQuestion], {}, 0)).toMatchObject({
+      customAnswer: "line 1\nline 2",
+      isComplete: true,
+    });
+  });
+
   it("clears the preset selection when a custom answer is entered", () => {
     expect(
       setPendingUserInputCustomAnswer(

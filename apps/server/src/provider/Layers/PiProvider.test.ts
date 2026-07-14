@@ -11,14 +11,17 @@ import { buildInitialPiProviderSnapshot, checkPiProviderStatus } from "./PiProvi
 const decodePiSettings = Schema.decodeSync(PiSettings);
 
 // fake `pi`: `--version` exits 0; anything else returns empty get_available_models
-const HEALTHY_PI_SCRIPT = [
-  "#!/bin/sh",
-  'case "$1" in',
-  '  --version) printf "pi 0.80.2\\n"; exit 0 ;;',
-  '  *) printf \'{"type":"response","command":"get_available_models","id":"pi-model-discovery","success":true,"data":{"models":[]}}\\n\'; exit 0 ;;',
-  "esac",
-  "",
-].join("\n");
+const healthyPiScript = (models: ReadonlyArray<{ provider: string; id: string }> = []) =>
+  [
+    "#!/bin/sh",
+    'case "$1" in',
+    '  --version) printf "pi 0.80.6\\n"; exit 0 ;;',
+    `  *) printf '${JSON.stringify({ type: "response", command: "get_available_models", id: "pi-model-discovery", success: true, data: { models } })}\\n'; exit 0 ;;`,
+    "esac",
+    "",
+  ].join("\n");
+
+const HEALTHY_PI_SCRIPT = healthyPiScript();
 
 describe("buildInitialPiProviderSnapshot", () => {
   it.effect("returns a disabled snapshot when settings.enabled is false", () =>
@@ -117,7 +120,10 @@ it.layer(NodeServices.layer)("checkPiProviderStatus", (it) => {
           const path = yield* Path.Path;
           const dir = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-pi-ready-" });
           const piPath = path.join(dir, "pi");
-          yield* fs.writeFileString(piPath, HEALTHY_PI_SCRIPT);
+          yield* fs.writeFileString(
+            piPath,
+            healthyPiScript([{ provider: "openai", id: "gpt-test" }]),
+          );
           yield* fs.chmod(piPath, 0o755);
           return yield* checkPiProviderStatus(
             decodePiSettings({ enabled: true, binaryPath: piPath, customModels: ["x/y"] }),

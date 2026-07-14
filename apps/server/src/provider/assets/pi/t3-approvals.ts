@@ -18,8 +18,10 @@ function gateDecision(opts: {
   return undefined;
 }
 
-// keep in sync with PI_APPROVAL_SENTINEL_COMMAND in PiAdapter.ts
+// keep in sync with PiAdapter.ts; the marker lets T3 distinguish this bundled
+// tool gate from ordinary extension confirmations.
 const SENTINEL_COMMAND = "t3-approval-gate";
+const APPROVAL_TITLE_PREFIX = "[t3-tool-approval] ";
 
 const DENIED_REASON = "Denied in T3 Code";
 
@@ -55,7 +57,9 @@ export default function (pi: ExtensionAPI): void {
 
     const input = (event as { input?: Record<string, unknown> }).input;
     const detail = describeToolCall(event.toolName, input);
-    const confirmed = ctx.hasUI ? await ctx.ui.confirm(`Run ${event.toolName}?`, detail) : false;
+    const confirmed = ctx.hasUI
+      ? await ctx.ui.confirm(`${APPROVAL_TITLE_PREFIX}Run ${event.toolName}?`, detail)
+      : false;
 
     return gateDecision({ hasUI: ctx.hasUI, confirmed });
   });

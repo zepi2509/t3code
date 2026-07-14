@@ -45,17 +45,21 @@ import {
 } from "../Errors.ts";
 import type { PiAdapterShape } from "../Services/PiAdapter.ts";
 import {
-  type AgentSessionEvent,
   buildPiTurnCommand,
   extractAssistantTextDelta,
   extractForkMessages,
+  extractPiCommands,
   extractReasoningTextDelta,
   extractSessionFile,
+  isPiExtensionCommand,
   makePiRpcTransport,
   type MakePiRpcTransportOptions,
+  type PiAgentEvent,
   piForkSucceeded,
   piImageContentFromBytes,
   type PiImageContent,
+  piModelSlug,
+  piResponseData,
   piResponseHasCommand,
   piResponseSucceeded,
   planPiModelSwitch,
@@ -76,6 +80,8 @@ const PI_MESSAGES_TIMEOUT_MS = 5_000;
 // fork/new_session rebinds to a new session file — give it more headroom
 const PI_FORK_TIMEOUT_MS = 15_000;
 const PI_MODEL_OPTIONS_TIMEOUT_MS = 5_000;
+const PI_PROMPT_TIMEOUT_MS = 5_000;
+const PI_APPROVAL_TITLE_PREFIX = "[t3-tool-approval] ";
 
 // keep in sync with SENTINEL_COMMAND in t3-approvals.ts
 const PI_APPROVAL_SENTINEL_COMMAND = "t3-approval-gate";
@@ -135,7 +141,7 @@ type PendingNumberedOption = string | NumberedOption;
 interface PendingUserInput {
   readonly piId: string;
   readonly questionId: string;
-  readonly method: "select" | "input" | "editor";
+  readonly method: "select" | "confirm" | "input" | "editor";
   readonly numberedOptions?: ReadonlyArray<PendingNumberedOption>;
 }
 
@@ -148,7 +154,9 @@ interface PiSessionContext {
   readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   readonly sessionApprovals: Set<string>;
   turnState: PiTurnState | undefined;
+  agentActive: boolean;
   readonly turns: Array<{ id: TurnId; items: Array<PiToolItem> }>;
+  readonly extensionCommands: Set<string>;
   stopped: boolean;
   // slug the pi process is running; used to issue set_model only on change
   currentModel: string | undefined;
@@ -240,12 +248,22 @@ export function buildPiUserInputResponse(
   pending: {
     readonly piId: string;
     readonly questionId: string;
-    readonly method: "select" | "input" | "editor";
+    readonly method: "select" | "confirm" | "input" | "editor";
     readonly numberedOptions?: ReadonlyArray<PendingNumberedOption>;
   },
   answers: ProviderUserInputAnswers,
 ): RpcExtensionUIResponse {
   const answer = answers[pending.questionId];
+  if (answer === null || answer === undefined) {
+    return { type: "extension_ui_response", id: pending.piId, cancelled: true };
+  }
+  if (pending.method === "confirm") {
+    return {
+      type: "extension_ui_response",
+      id: pending.piId,
+      confirmed: answer === true || answer === "Yes" || answer === "Confirm",
+    };
+  }
   const numberedOptions = pending.numberedOptions;
   if (pending.method === "input" && numberedOptions) {
     const selected: ReadonlyArray<string> = Array.isArray(answer)
@@ -388,10 +406,133 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       return turnId;
     });
 
-  const handlePiEvent = (
+  const updateDiscoveredCommands = (
     context: PiSessionContext,
-    event: AgentSessionEvent,
-  ): Effect.Effect<void> =>
+    response: Parameters<typeof extractPiCommands>[0],
+  ): void => {
+    context.extensionCommands.clear();
+    for (const command of extractPiCommands(response)) {
+      if (command.source === "extension") context.extensionCommands.add(command.name);
+    }
+  };
+
+  const syncPiSessionState = (context: PiSessionContext): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const [stateResponse, statsResponse, commandsResponse] = yield* Effect.all([
+        context.transport.request(
+          { type: "get_state" },
+          `pi-sync-state-${yield* nextUuid}`,
+          PI_STATE_TIMEOUT_MS,
+        ),
+        context.transport.request(
+          { type: "get_session_stats" },
+          `pi-sync-stats-${yield* nextUuid}`,
+          PI_STATE_TIMEOUT_MS,
+        ),
+        context.transport.request(
+          { type: "get_commands" },
+          `pi-sync-commands-${yield* nextUuid}`,
+          PI_COMMANDS_TIMEOUT_MS,
+        ),
+      ]);
+      updateDiscoveredCommands(context, commandsResponse);
+
+      const state = piResponseData(stateResponse);
+      const model = state?.["model"];
+      if (model && typeof model === "object") {
+        const record = model as Record<string, unknown>;
+        if (typeof record["provider"] === "string" && typeof record["id"] === "string") {
+          context.currentModel = piModelSlug({ provider: record["provider"], id: record["id"] });
+          context.session = { ...context.session, model: context.currentModel };
+        }
+      }
+      const thinkingLevel = state?.["thinkingLevel"];
+      if (typeof thinkingLevel === "string") {
+        context.appliedThinkingLevel = thinkingLevel as PiThinkingLevel;
+      }
+      const sessionFile = extractSessionFile(stateResponse);
+      if (sessionFile) context.session = { ...context.session, resumeCursor: { sessionFile } };
+      const sessionName = state?.["sessionName"];
+      if (typeof sessionName === "string" && sessionName.trim().length > 0) {
+        const stamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          ...stamp,
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          type: "thread.metadata.updated",
+          payload: { name: sessionName.trim() },
+        });
+      }
+
+      const stats = piResponseData(statsResponse);
+      const tokens = stats?.["tokens"];
+      if (tokens && typeof tokens === "object") {
+        const tokenRecord = tokens as Record<string, unknown>;
+        const contextUsage =
+          stats?.["contextUsage"] && typeof stats["contextUsage"] === "object"
+            ? (stats["contextUsage"] as Record<string, unknown>)
+            : undefined;
+        const usedTokens =
+          typeof contextUsage?.["tokens"] === "number"
+            ? contextUsage["tokens"]
+            : typeof tokenRecord["total"] === "number"
+              ? tokenRecord["total"]
+              : 0;
+        const stamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          ...stamp,
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          type: "thread.token-usage.updated",
+          payload: {
+            usage: {
+              usedTokens: Math.max(0, Math.trunc(usedTokens)),
+              ...(typeof tokenRecord["total"] === "number"
+                ? { totalProcessedTokens: Math.max(0, Math.trunc(tokenRecord["total"])) }
+                : {}),
+              ...(typeof tokenRecord["input"] === "number"
+                ? { inputTokens: Math.max(0, Math.trunc(tokenRecord["input"])) }
+                : {}),
+              ...(typeof tokenRecord["cacheRead"] === "number"
+                ? { cachedInputTokens: Math.max(0, Math.trunc(tokenRecord["cacheRead"])) }
+                : {}),
+              ...(typeof tokenRecord["output"] === "number"
+                ? { outputTokens: Math.max(0, Math.trunc(tokenRecord["output"])) }
+                : {}),
+              ...(typeof contextUsage?.["contextWindow"] === "number" &&
+              contextUsage["contextWindow"] > 0
+                ? { maxTokens: Math.trunc(contextUsage["contextWindow"]) }
+                : {}),
+              ...(typeof stats["toolCalls"] === "number"
+                ? { toolUses: Math.max(0, Math.trunc(stats["toolCalls"])) }
+                : {}),
+              compactsAutomatically: state?.["autoCompactionEnabled"] === true,
+            },
+          },
+        });
+      }
+    }).pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning("Failed to synchronize Pi RPC state", {
+          threadId: context.session.threadId,
+          cause,
+        }),
+      ),
+    );
+
+  const renderPiValue = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value;
+    if (value === undefined) return undefined;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const handlePiEvent = (context: PiSessionContext, event: PiAgentEvent): Effect.Effect<void> =>
     Effect.gen(function* () {
       const stamp = yield* makeEventStamp();
       const base = {
@@ -404,6 +545,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
       switch (event.type) {
         case "agent_start": {
+          context.agentActive = true;
           yield* offerRuntimeEvent({
             ...base,
             type: "session.state.changed",
@@ -416,6 +558,37 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           if (!context.turnState) {
             yield* openTurn(context);
           }
+          return;
+        }
+
+        case "message_start":
+          return;
+
+        case "message_end": {
+          const message = event.message as unknown as Record<string, unknown>;
+          if (message["role"] !== "custom" || message["display"] === false) return;
+          const content = renderPiValue(message["content"]);
+          if (!content?.trim()) return;
+          const turnId = context.turnState?.turnId;
+          yield* offerRuntimeEvent({
+            ...base,
+            ...(turnId ? { turnId } : {}),
+            itemId: RuntimeItemId.make(`custom:${stamp.eventId}`),
+            type: "item.completed",
+            payload: {
+              itemType: "assistant_message",
+              title:
+                typeof message["customType"] === "string"
+                  ? message["customType"]
+                  : "Extension message",
+              detail: content,
+              data: {
+                customType: message["customType"],
+                content: message["content"],
+                details: message["details"],
+              },
+            },
+          });
           return;
         }
 
@@ -475,21 +648,25 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
         case "tool_execution_update": {
           if (!context.turnState) return;
-          const partial = (event as { partialResult?: unknown }).partialResult;
-          if (partial === undefined) return;
           const itemId = RuntimeItemId.make(event.toolCallId);
           const itemType = classifyPiToolItemType(event.toolName);
-          const delta = typeof partial === "string" ? partial : String(partial);
-          if (delta.length === 0) return;
+          const detail = renderPiValue(event.partialResult);
           yield* offerRuntimeEvent({
             ...base,
             turnId: context.turnState.turnId,
             itemId,
-            type: "content.delta",
+            type: "item.updated",
             payload: {
-              streamKind:
-                itemType === "command_execution" ? "command_output" : "file_change_output",
-              delta,
+              itemType,
+              title: event.toolName,
+              status: "inProgress",
+              ...(detail?.trim() ? { detail: detail.slice(0, 2_000) } : {}),
+              data: {
+                toolName: event.toolName,
+                input: event.args,
+                // Pi partialResult is accumulated structured output: replace, never append.
+                partialResult: event.partialResult,
+              },
             },
           });
           return;
@@ -500,7 +677,12 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           const itemId = RuntimeItemId.make(event.toolCallId);
           const itemType = classifyPiToolItemType(event.toolName);
           const storedItem = context.turnState.items.find((item) => item.id === itemId);
-          const detail = summarizePiToolArgs(storedItem?.args);
+          const argsDetail = summarizePiToolArgs(storedItem?.args);
+          const resultDetail = renderPiValue(event.result);
+          const detail =
+            event.isError || itemType === "dynamic_tool_call" || itemType === "mcp_tool_call"
+              ? resultDetail?.slice(0, 2_000)
+              : argsDetail;
           const argsObj =
             storedItem?.args && typeof storedItem.args === "object"
               ? (storedItem.args as Record<string, unknown>)
@@ -515,7 +697,15 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
               title: event.toolName,
               status: event.isError ? "failed" : "completed",
               ...(detail ? { detail } : {}),
-              ...(argsObj ? { data: { toolName: event.toolName, input: argsObj } } : {}),
+              data: {
+                toolName: event.toolName,
+                ...(argsObj ? { input: argsObj } : {}),
+                result: event.result,
+                isError: event.isError,
+                ...((event.result as { terminate?: unknown } | null)?.terminate === true
+                  ? { terminate: true }
+                  : {}),
+              },
             },
           });
           return;
@@ -526,13 +716,49 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           return;
         }
 
-        case "agent_end": {
-          // willRetry means pi will auto-retry (another agent_start/end cycle) —
-          // finalize only on the terminal end, since a retry isn't a user interrupt
-          if (event.willRetry) return;
-          if (context.turnState) {
-            yield* completeTurn(context, "completed");
-          }
+        case "agent_end":
+          // Low-level end is not terminal: retry, compaction, steering, or follow-up may follow.
+          return;
+
+        case "agent_settled": {
+          context.agentActive = false;
+          if (context.turnState) yield* completeTurn(context, "completed");
+          yield* syncPiSessionState(context);
+          return;
+        }
+
+        case "queue_update": {
+          yield* offerRuntimeEvent({
+            ...base,
+            type: "session.state.changed",
+            payload: {
+              state: context.turnState ? "running" : "ready",
+              detail: { steering: event.steering, followUp: event.followUp },
+            },
+          });
+          const queuedMessages = [
+            ...event.steering.map((message) => `Steering queued: ${message}`),
+            ...event.followUp.map((message) => `Follow-up queued: ${message}`),
+          ];
+          const queueStamp = yield* makeEventStamp();
+          yield* offerRuntimeEvent({
+            ...queueStamp,
+            provider: PROVIDER,
+            providerInstanceId: boundInstanceId,
+            threadId: context.session.threadId,
+            ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
+            type: "provider.ui",
+            payload: {
+              effect: {
+                method: "setStatus",
+                statusKey: "pi-queue",
+                ...(queuedMessages.length > 0
+                  ? { statusText: queuedMessages.join(" · ").slice(0, 400) }
+                  : {}),
+              },
+            },
+            ...rawEvent("pi.rpc.event", event.type, event),
+          });
           return;
         }
 
@@ -540,7 +766,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           yield* offerRuntimeEvent({
             ...base,
             type: "session.state.changed",
-            payload: { state: "waiting", reason: "compaction" },
+            payload: { state: "waiting", reason: "compaction", detail: { reason: event.reason } },
           });
           return;
         }
@@ -549,13 +775,108 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           yield* offerRuntimeEvent({
             ...base,
             type: "thread.state.changed",
-            payload: { state: "compacted" },
+            payload: {
+              state: "compacted",
+              detail: {
+                reason: event.reason,
+                result: event.result,
+                aborted: event.aborted,
+                willRetry: event.willRetry,
+                ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
+              },
+            },
           });
           return;
         }
 
-        default:
+        case "auto_retry_start": {
+          yield* offerRuntimeEvent({
+            ...base,
+            type: "session.state.changed",
+            payload: {
+              state: "waiting",
+              reason: `Retry ${event.attempt}/${event.maxAttempts}`,
+              detail: event,
+            },
+          });
           return;
+        }
+
+        case "auto_retry_end": {
+          if (!event.success && event.finalError) {
+            yield* offerRuntimeEvent({
+              ...base,
+              type: "runtime.error",
+              payload: { message: event.finalError, class: "provider_error", detail: event },
+            });
+          }
+          return;
+        }
+
+        case "extension_error": {
+          yield* offerRuntimeEvent({
+            ...base,
+            type: "runtime.error",
+            payload: {
+              message: `Pi extension error: ${event.error}`,
+              class: "provider_error",
+              detail: { extensionPath: event.extensionPath, event: event.event },
+            },
+          });
+          return;
+        }
+
+        case "session_info_changed": {
+          if (!event.name?.trim()) return;
+          yield* offerRuntimeEvent({
+            ...base,
+            type: "thread.metadata.updated",
+            payload: { name: event.name.trim() },
+          });
+          return;
+        }
+
+        case "thinking_level_changed": {
+          context.appliedThinkingLevel = event.level as PiThinkingLevel;
+          yield* offerRuntimeEvent({
+            ...base,
+            type: "session.configured",
+            payload: { config: { thinkingLevel: event.level } },
+          });
+          return;
+        }
+
+        case "entry_appended": {
+          const entry = event.entry as unknown as Record<string, unknown>;
+          if (
+            entry["type"] === "model_change" &&
+            typeof entry["provider"] === "string" &&
+            typeof entry["modelId"] === "string"
+          ) {
+            context.currentModel = `${entry["provider"]}/${entry["modelId"]}`;
+            context.session = { ...context.session, model: context.currentModel };
+            yield* offerRuntimeEvent({
+              ...base,
+              type: "session.configured",
+              payload: { config: { model: context.currentModel } },
+            });
+            return;
+          }
+          if (entry["type"] === "custom") {
+            yield* offerRuntimeEvent({
+              ...base,
+              type: "runtime.warning",
+              payload: {
+                message:
+                  typeof entry["customType"] === "string"
+                    ? `Pi extension state: ${entry["customType"]}`
+                    : "Pi extension state updated",
+                detail: entry["data"],
+              },
+            });
+          }
+          return;
+        }
       }
     });
 
@@ -564,7 +885,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     request: RpcExtensionUIRequest,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
-      // fire-and-forget UI side-effects — Pi does not await a response
+      const stamp = yield* makeEventStamp();
+      const turnId = context.turnState?.turnId;
+
       if (
         request.method === "notify" ||
         request.method === "setStatus" ||
@@ -572,18 +895,53 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         request.method === "setTitle" ||
         request.method === "set_editor_text"
       ) {
+        const effect = (() => {
+          switch (request.method) {
+            case "notify":
+              return {
+                method: "notify" as const,
+                message: request.message,
+                notifyType: request.notifyType ?? "info",
+              };
+            case "setStatus":
+              return {
+                method: "setStatus" as const,
+                statusKey: request.statusKey,
+                ...(request.statusText === undefined ? {} : { statusText: request.statusText }),
+              };
+            case "setWidget":
+              return {
+                method: "setWidget" as const,
+                widgetKey: request.widgetKey,
+                ...(request.widgetLines === undefined ? {} : { widgetLines: request.widgetLines }),
+                widgetPlacement: request.widgetPlacement ?? "aboveEditor",
+              };
+            case "setTitle":
+              return { method: "setTitle" as const, title: request.title };
+            case "set_editor_text":
+              return { method: "set_editor_text" as const, text: request.text };
+          }
+        })();
+        yield* offerRuntimeEvent({
+          ...stamp,
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          ...(turnId ? { turnId } : {}),
+          type: "provider.ui",
+          payload: { effect },
+          ...rawEvent("pi.rpc.extension-ui", request.method, request),
+        });
         return;
       }
 
-      const stamp = yield* makeEventStamp();
       const requestId = ApprovalRequestId.make(yield* nextUuid);
       const runtimeRequestId = RuntimeRequestId.make(requestId);
-      const turnId = context.turnState?.turnId;
 
-      if (request.method === "confirm") {
-        const requestType = classifyPiApprovalRequestType(request.title);
-        const detail =
-          request.message.length > 0 ? `${request.title}\n${request.message}` : request.title;
+      if (request.method === "confirm" && request.title.startsWith(PI_APPROVAL_TITLE_PREFIX)) {
+        const title = request.title.slice(PI_APPROVAL_TITLE_PREFIX.length);
+        const requestType = classifyPiApprovalRequestType(title);
+        const detail = request.message.length > 0 ? `${title}\n${request.message}` : title;
         const sessionApprovalKey = `${requestType}:${detail}`;
         if (context.sessionApprovals.has(sessionApprovalKey)) {
           yield* context.transport.writeExtensionResponse({
@@ -606,46 +964,68 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           ...(turnId ? { turnId } : {}),
           requestId: runtimeRequestId,
           type: "request.opened",
-          payload: { requestType, detail: detail.slice(0, 2000), args: request },
+          payload: { requestType, detail: detail.slice(0, 2000), args: { ...request, title } },
           ...rawEvent("pi.rpc.extension-ui", request.method, request),
         });
+        if (request.timeout !== undefined) {
+          yield* Effect.sleep(request.timeout).pipe(
+            Effect.flatMap(() => {
+              if (!context.pendingApprovals.delete(requestId)) return Effect.void;
+              return makeEventStamp().pipe(
+                Effect.flatMap((timeoutStamp) =>
+                  offerRuntimeEvent({
+                    ...timeoutStamp,
+                    provider: PROVIDER,
+                    providerInstanceId: boundInstanceId,
+                    threadId: context.session.threadId,
+                    ...(turnId ? { turnId } : {}),
+                    requestId: runtimeRequestId,
+                    type: "request.resolved",
+                    payload: { requestType, decision: "cancel" },
+                  }),
+                ),
+              );
+            }),
+            Effect.forkIn(context.sessionScope),
+          );
+        }
         return;
       }
 
       const questionId = String(requestId);
-      let question: UserInputQuestion;
       let numberedOptions: ReadonlyArray<PendingNumberedOption> | undefined;
-
-      if (request.method === "select") {
-        question = {
-          id: questionId,
-          header: request.title.slice(0, 12) || "Select",
-          question: request.title,
-          options: request.options.map((label) => ({ label, description: label })),
-          multiSelect: false,
-        };
-      } else {
-        const title = "title" in request ? request.title : "";
-        const parsed = request.method === "input" ? parseNumberedList(title) : null;
-        if (parsed) {
-          numberedOptions = parsed.items;
-          question = {
-            id: questionId,
-            header: parsed.title.slice(0, 12) || "Select",
-            question: parsed.title,
-            options: parsed.items.map((item) => ({ label: item.label, description: item.label })),
-            multiSelect: true,
-          };
-        } else {
-          question = {
-            id: questionId,
-            header: title.slice(0, 12) || "Input",
-            question: title || "Input",
-            options: [],
-            multiSelect: false,
-          };
-        }
-      }
+      const parsed = request.method === "input" ? parseNumberedList(request.title) : null;
+      if (parsed) numberedOptions = parsed.items;
+      const title = parsed?.title ?? request.title;
+      const options =
+        request.method === "select"
+          ? request.options
+          : request.method === "confirm"
+            ? ["Yes", "No"]
+            : parsed
+              ? parsed.items.map((item) => item.label)
+              : [];
+      const question: UserInputQuestion = {
+        id: questionId,
+        header: title.slice(0, 12) || "Input",
+        question:
+          request.method === "confirm" && request.message.length > 0 ? request.message : title,
+        options: options.map((label) => ({ label, description: label })),
+        multiSelect: Boolean(parsed),
+        inputKind: request.method,
+        title,
+        ...(request.method === "confirm" ? { message: request.message } : {}),
+        ...(request.method === "input" && request.placeholder !== undefined
+          ? { placeholder: request.placeholder }
+          : {}),
+        ...(request.method === "editor" && request.prefill !== undefined
+          ? { prefill: request.prefill }
+          : {}),
+        multiline: request.method === "editor",
+        ...(request.method !== "editor" && request.timeout !== undefined
+          ? { timeoutMs: Math.max(1, Math.trunc(request.timeout)) }
+          : {}),
+      };
 
       context.pendingUserInputs.set(requestId, {
         piId: request.id,
@@ -665,6 +1045,28 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         payload: { questions: [question] },
         ...rawEvent("pi.rpc.extension-ui", request.method, request),
       });
+      if (request.method !== "editor" && request.timeout !== undefined) {
+        yield* Effect.sleep(request.timeout).pipe(
+          Effect.flatMap(() => {
+            if (!context.pendingUserInputs.delete(requestId)) return Effect.void;
+            return makeEventStamp().pipe(
+              Effect.flatMap((timeoutStamp) =>
+                offerRuntimeEvent({
+                  ...timeoutStamp,
+                  provider: PROVIDER,
+                  providerInstanceId: boundInstanceId,
+                  threadId: context.session.threadId,
+                  ...(turnId ? { turnId } : {}),
+                  requestId: runtimeRequestId,
+                  type: "user-input.resolved",
+                  payload: { answers: {} },
+                }),
+              ),
+            );
+          }),
+          Effect.forkIn(context.sessionScope),
+        );
+      }
     });
 
   const handleMessage = (
@@ -678,6 +1080,20 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         return handleExtensionUIRequest(context, message.request);
       case "response":
         return Effect.void;
+      case "unknown":
+        return makeEventStamp().pipe(
+          Effect.flatMap((stamp) =>
+            offerRuntimeEvent({
+              ...stamp,
+              provider: PROVIDER,
+              providerInstanceId: boundInstanceId,
+              threadId: context.session.threadId,
+              ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
+              type: "runtime.warning",
+              payload: { message: message.reason, detail: message.payload },
+            }),
+          ),
+        );
     }
   };
 
@@ -978,7 +1394,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       pendingUserInputs: new Map(),
       sessionApprovals: new Set(),
       turnState: undefined,
+      agentActive: false,
       turns: [],
+      extensionCommands: new Set(),
       stopped: false,
       currentModel: modelSelection?.model,
       appliedThinkingLevel: thinkingLevel,
@@ -1005,13 +1423,15 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       context.session = { ...context.session, resumeCursor: { sessionFile } };
     }
 
+    const commandsResponse = yield* transport.request(
+      { type: "get_commands" },
+      `pi-get-commands-${yield* nextUuid}`,
+      PI_COMMANDS_TIMEOUT_MS,
+    );
+    updateDiscoveredCommands(context, commandsResponse);
+
     // fail closed unless the gate extension registered its sentinel command
     if (verifyApprovalGate) {
-      const commandsResponse = yield* transport.request(
-        { type: "get_commands" },
-        `pi-get-commands-${yield* nextUuid}`,
-        PI_COMMANDS_TIMEOUT_MS,
-      );
       if (!piResponseHasCommand(commandsResponse, PI_APPROVAL_SENTINEL_COMMAND)) {
         yield* stopSessionInternal(context, { emitExitEvent: false });
         return yield* new ProviderAdapterProcessError({
@@ -1070,6 +1490,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       threadId,
       payload: { state: "ready" },
     });
+    yield* syncPiSessionState(context);
 
     return { ...context.session };
   });
@@ -1123,25 +1544,37 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     }
 
     const turnId = context.turnState.turnId;
-
-    yield* context.transport
-      .writeCommand(buildPiTurnCommand({ isMidTurn, message: promptText, images }))
-      .pipe(
-        Effect.catchCause((cause) =>
-          completeTurn(context, "failed", "Failed to send message to Pi.").pipe(
-            Effect.andThen(
-              Effect.fail(
-                new ProviderAdapterRequestError({
-                  provider: PROVIDER,
-                  method: "prompt",
-                  detail: "Failed to send message to Pi.",
-                  cause,
-                }),
-              ),
-            ),
-          ),
-        ),
+    const extensionCommand = isPiExtensionCommand(promptText, context.extensionCommands);
+    const command = buildPiTurnCommand({
+      isMidTurn,
+      isExtensionCommand: extensionCommand,
+      message: promptText,
+      images,
+    });
+    const response = yield* context.transport.request(
+      command,
+      `pi-${command.type}-${yield* nextUuid}`,
+      PI_PROMPT_TIMEOUT_MS,
+    );
+    if (!piResponseSucceeded(response, command.type)) {
+      yield* completeTurn(context, "failed", `Pi rejected the ${command.type} request.`);
+      return yield* new ProviderAdapterRequestError({
+        provider: PROVIDER,
+        method: command.type,
+        detail: `Pi rejected the ${command.type} request.`,
+      });
+    }
+    if (extensionCommand) {
+      const commandsResponse = yield* context.transport.request(
+        { type: "get_commands" },
+        `pi-refresh-commands-${yield* nextUuid}`,
+        PI_COMMANDS_TIMEOUT_MS,
       );
+      updateDiscoveredCommands(context, commandsResponse);
+      if (!context.agentActive && context.turnState?.turnId === turnId) {
+        yield* completeTurn(context, "completed");
+      }
+    }
 
     return {
       threadId: context.session.threadId,
@@ -1305,6 +1738,12 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         PI_STATE_TIMEOUT_MS,
       );
       const sessionFile = extractSessionFile(stateResponse);
+      const commandsResponse = yield* context.transport.request(
+        { type: "get_commands" },
+        `pi-post-fork-commands-${yield* nextUuid}`,
+        PI_COMMANDS_TIMEOUT_MS,
+      );
+      updateDiscoveredCommands(context, commandsResponse);
       const updatedAt = yield* nowIso;
       context.session = {
         ...context.session,

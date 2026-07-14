@@ -9,12 +9,15 @@ import {
   extractAvailableModels,
   extractForkMessages,
   extractLastAssistantText,
+  extractPiCommands,
   extractReasoningTextDelta,
   extractSessionFile,
   parsePiStdoutLine,
   PI_THINKING_LEVEL_VALUES,
   piForkSucceeded,
   piImageContentFromBytes,
+  isPiExtensionCommand,
+  piCommandsToProviderResources,
   piModelCapabilities,
   piModelInfoToServerModel,
   piModelSlug,
@@ -24,6 +27,7 @@ import {
   resolveForkTargetEntryId,
   resolvePiThinkingLevel,
   splitPiModelSlug,
+  supportedPiThinkingLevels,
   tryParsePiJsonObject,
 } from "./PiRpcClient.ts";
 
@@ -56,25 +60,38 @@ describe("tryParsePiJsonObject", () => {
 
 describe("classifyPiStdoutMessage / parsePiStdoutLine", () => {
   it("discriminates a response frame and extracts its correlation id", () => {
-    const message = classifyPiStdoutMessage({ type: "response", id: "req-1", success: true });
+    const message = classifyPiStdoutMessage({
+      type: "response",
+      id: "req-1",
+      command: "get_state",
+      success: true,
+    });
     expect(message).toMatchObject({ _tag: "response", id: "req-1" });
   });
 
   it("treats a response without a string id as undefined", () => {
-    const message = classifyPiStdoutMessage({ type: "response", success: true });
+    const message = classifyPiStdoutMessage({
+      type: "response",
+      command: "get_state",
+      success: true,
+    });
     expect(message).toMatchObject({ _tag: "response", id: undefined });
   });
 
   it("discriminates an extension_ui_request frame", () => {
     const message = parsePiStdoutLine(
-      '{"type":"extension_ui_request","id":"ui-1","method":"confirm","title":"bash"}',
+      '{"type":"extension_ui_request","id":"ui-1","method":"confirm","title":"bash","message":"ls"}',
     );
     expect(message).toMatchObject({ _tag: "extension-ui" });
   });
 
-  it("treats any other typed frame as an agent event", () => {
-    const message = parsePiStdoutLine('{"type":"agent_start"}');
-    expect(message).toMatchObject({ _tag: "event" });
+  it("recognizes documented events and surfaces unknown future events", () => {
+    expect(parsePiStdoutLine('{"type":"agent_start"}')).toMatchObject({ _tag: "event" });
+    expect(parsePiStdoutLine('{"type":"future_event","value":1}')).toEqual({
+      _tag: "unknown",
+      payload: { type: "future_event", value: 1 },
+      reason: "Unknown Pi RPC event: future_event",
+    });
   });
 
   it("ignores frames without a usable type discriminator", () => {
@@ -158,14 +175,47 @@ describe("splitPiModelSlug / piModelSlug", () => {
 
 describe("piModelCapabilities", () => {
   it("exposes a thinking descriptor for reasoning models", () => {
-    const capabilities = piModelCapabilities(true);
+    const capabilities = piModelCapabilities(
+      asModelInfo({ provider: "test", id: "reasoning", reasoning: true }),
+    );
     expect((capabilities.optionDescriptors ?? []).map((descriptor) => descriptor.id)).toContain(
       "thinking",
     );
   });
 
   it("exposes no option descriptors for non-reasoning models", () => {
-    expect(piModelCapabilities(false).optionDescriptors ?? []).toEqual([]);
+    expect(
+      piModelCapabilities(asModelInfo({ provider: "test", id: "plain", reasoning: false }))
+        .optionDescriptors ?? [],
+    ).toEqual([]);
+  });
+
+  it("uses model thinkingLevelMap metadata for xhigh and max support", () => {
+    const maxModel = asModelInfo({
+      provider: "openai",
+      id: "future-model",
+      reasoning: true,
+      thinkingLevelMap: { xhigh: "high", max: "max" },
+    });
+    expect(supportedPiThinkingLevels(maxModel)).toEqual([
+      "off",
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+    ]);
+    expect(
+      supportedPiThinkingLevels(
+        asModelInfo({
+          provider: "openai",
+          id: "limited",
+          reasoning: true,
+          thinkingLevelMap: { minimal: null, xhigh: null, max: null },
+        }),
+      ),
+    ).toEqual(["off", "low", "medium", "high"]);
   });
 });
 
@@ -237,6 +287,77 @@ describe("extractAvailableModels", () => {
         asResponse({ type: "response", success: true, data: { models: "nope" } }),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("Pi command discovery and invocation", () => {
+  const response = asResponse({
+    type: "response",
+    command: "get_commands",
+    success: true,
+    data: {
+      commands: [
+        {
+          name: "review",
+          description: "Review changes",
+          source: "extension",
+          sourceInfo: { path: "/ext/review.ts", scope: "user" },
+        },
+        {
+          name: "fix-tests",
+          description: "Fix tests",
+          source: "prompt",
+          sourceInfo: { path: "/prompts/fix-tests.md", scope: "project" },
+        },
+        {
+          name: "skill:search",
+          description: "Search docs",
+          source: "skill",
+          sourceInfo: { path: "/skills/search/SKILL.md", scope: "user" },
+        },
+      ],
+    },
+  });
+
+  it("preserves source metadata and maps into existing commands and skills", () => {
+    const commands = extractPiCommands(response);
+    expect(commands).toHaveLength(3);
+    expect(piCommandsToProviderResources(commands)).toEqual({
+      slashCommands: [
+        {
+          name: "review",
+          description: "Review changes",
+          source: "extension",
+          sourcePath: "/ext/review.ts",
+          sourceScope: "user",
+        },
+        {
+          name: "fix-tests",
+          description: "Fix tests",
+          source: "prompt",
+          sourcePath: "/prompts/fix-tests.md",
+          sourceScope: "project",
+        },
+      ],
+      skills: [
+        {
+          name: "search",
+          description: "Search docs",
+          path: "/skills/search/SKILL.md",
+          scope: "user",
+          enabled: true,
+          displayName: "search",
+          shortDescription: "Search docs",
+        },
+      ],
+    });
+  });
+
+  it("recognizes only exact extension slash commands", () => {
+    const extensionNames = new Set(["review"]);
+    expect(isPiExtensionCommand("/review now", extensionNames)).toBe(true);
+    expect(isPiExtensionCommand("/reviewer", extensionNames)).toBe(false);
+    expect(isPiExtensionCommand("review", extensionNames)).toBe(false);
   });
 });
 
@@ -342,11 +463,14 @@ describe("buildPiTurnCommand", () => {
     });
   });
 
-  it("uses prompt for a fresh turn", () => {
+  it("uses prompt for a fresh turn and for a streaming extension command", () => {
     expect(buildPiTurnCommand({ isMidTurn: false, message: "start work" })).toEqual({
       type: "prompt",
       message: "start work",
     });
+    expect(
+      buildPiTurnCommand({ isMidTurn: true, isExtensionCommand: true, message: "/review" }),
+    ).toEqual({ type: "prompt", message: "/review" });
   });
 
   it("preserves empty messages without switching command type", () => {
@@ -372,8 +496,17 @@ describe("buildPiTurnCommand", () => {
 
 describe("asPiThinkingLevel / resolvePiThinkingLevel", () => {
   it("keeps descriptor option ids in sync with the ThinkingLevel set", () => {
-    const descriptorIds = (piModelCapabilities(true).optionDescriptors ?? []).flatMap(
-      (descriptor) => (descriptor.type === "select" ? descriptor.options.map((o) => o.id) : []),
+    const descriptorIds = (
+      piModelCapabilities(
+        asModelInfo({
+          provider: "test",
+          id: "all-levels",
+          reasoning: true,
+          thinkingLevelMap: { xhigh: "xhigh", max: "max" },
+        }),
+      ).optionDescriptors ?? []
+    ).flatMap((descriptor) =>
+      descriptor.type === "select" ? descriptor.options.map((o) => o.id) : [],
     );
     expect(descriptorIds).toEqual([...PI_THINKING_LEVEL_VALUES]);
   });
