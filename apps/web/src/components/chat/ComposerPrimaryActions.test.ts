@@ -14,9 +14,18 @@ it("offers explicit mid-turn delivery choices", () => {
 });
 
 it("changes the primary mid-turn action while Ctrl or Cmd is held", () => {
-  expect(midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: false })).toBe("steer");
-  expect(midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false })).toBe("follow-up");
-  expect(midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: true })).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: false, supportsFollowUp: true }),
+  ).toBe("steer");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: true }),
+  ).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: true, supportsFollowUp: true }),
+  ).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: false }),
+  ).toBe("steer");
 });
 
 describe("formatPendingPrimaryActionLabel", () => {
