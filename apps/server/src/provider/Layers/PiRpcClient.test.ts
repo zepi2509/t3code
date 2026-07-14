@@ -463,6 +463,12 @@ describe("buildPiTurnCommand", () => {
     });
   });
 
+  it("uses follow_up for deferred mid-turn delivery", () => {
+    expect(
+      buildPiTurnCommand({ isMidTurn: true, deliveryMode: "follow-up", message: "after this" }),
+    ).toEqual({ type: "follow_up", message: "after this" });
+  });
+
   it("uses prompt for a fresh turn and for a streaming extension command", () => {
     expect(buildPiTurnCommand({ isMidTurn: false, message: "start work" })).toEqual({
       type: "prompt",

@@ -20,6 +20,7 @@ import {
   ProviderSandboxMode,
   ProviderUserInputAnswers,
   RuntimeMode,
+  TurnDeliveryMode,
 } from "./orchestration.ts";
 import { ProviderInstanceId, ProviderDriverKind } from "./providerInstance.ts";
 
@@ -74,6 +75,7 @@ export const ProviderSendTurnInput = Schema.Struct({
   ),
   modelSelection: Schema.optional(ModelSelection),
   interactionMode: Schema.optional(ProviderInteractionMode),
+  deliveryMode: Schema.optional(TurnDeliveryMode),
 });
 export type ProviderSendTurnInput = typeof ProviderSendTurnInput.Type;
 

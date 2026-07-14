@@ -276,7 +276,10 @@ export function piModelSlug(model: Pick<ModelInfo, "provider" | "id">): string {
 // derived from RpcCommand so it tracks the installed package
 export type PiImageContent = NonNullable<Extract<RpcCommand, { type: "prompt" }>["images"]>[number];
 
-export type PiTurnCommand = Extract<RpcCommand, { type: "prompt" } | { type: "steer" }>;
+export type PiTurnCommand = Extract<
+  RpcCommand,
+  { type: "prompt" } | { type: "steer" } | { type: "follow_up" }
+>;
 
 // raw base64, not a data URL
 export function piImageContentFromBytes(input: {
@@ -295,13 +298,18 @@ export function piImageContentFromBytes(input: {
 export function buildPiTurnCommand(args: {
   readonly isMidTurn: boolean;
   readonly isExtensionCommand?: boolean;
+  readonly deliveryMode?: "steer" | "follow-up";
   readonly message: string;
   readonly images?: ReadonlyArray<PiImageContent>;
 }): PiTurnCommand {
   const hasImages = args.images !== undefined && args.images.length > 0;
   const images = hasImages ? [...(args.images as ReadonlyArray<PiImageContent>)] : undefined;
   return args.isMidTurn && !args.isExtensionCommand
-    ? { type: "steer", message: args.message, ...(images ? { images } : {}) }
+    ? {
+        type: args.deliveryMode === "follow-up" ? "follow_up" : "steer",
+        message: args.message,
+        ...(images ? { images } : {}),
+      }
     : { type: "prompt", message: args.message, ...(images ? { images } : {}) };
 }
 
