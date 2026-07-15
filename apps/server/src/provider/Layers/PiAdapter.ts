@@ -1169,7 +1169,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       const updatedAt = yield* nowIso;
       const { activeTurnId: _activeTurnId, ...closedSession } = context.session;
       context.session = { ...closedSession, status: "closed", updatedAt };
-      sessions.delete(context.session.threadId);
+      if (sessions.get(context.session.threadId) === context) {
+        sessions.delete(context.session.threadId);
+      }
 
       if (opts?.emitExitEvent !== false) {
         const exitKind = opts?.exitKind ?? "graceful";
@@ -1344,6 +1346,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     }
 
     const sessionScope = yield* Scope.make();
+    let context: PiSessionContext | undefined;
 
     const makeTransport = options?.makeTransport ?? makePiRpcTransport;
     const transport = yield* makeTransport({
@@ -1353,7 +1356,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       env: processEnv,
       onExit: Effect.suspend(() => {
         const live = sessions.get(threadId);
-        if (live && !live.stopped && live.session.status !== "closed") {
+        if (live && live === context && !live.stopped && live.session.status !== "closed") {
           return stopSessionInternal(live, { emitExitEvent: true, exitKind: "error" });
         }
         return Effect.void;
@@ -1385,7 +1388,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       updatedAt: startedAt,
     };
 
-    const context: PiSessionContext = {
+    context = {
       session,
       sessionScope,
       transport,
