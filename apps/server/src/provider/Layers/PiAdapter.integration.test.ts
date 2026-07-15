@@ -678,6 +678,53 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
     }),
   );
 
+  it.effect("keeps a replacement session when the previous Pi process exits late", () =>
+    Effect.gen(function* () {
+      const fakes: FakePiTransport[] = [];
+      const exits: Array<Effect.Effect<void>> = [];
+      const adapter = yield* makePiAdapter(enabledSettings(), {
+        makeTransport: (input) =>
+          makeFakePiRpcTransport.pipe(
+            Effect.tap((fake) =>
+              Effect.sync(() => {
+                fake.setResponse(
+                  "get_state",
+                  asResponse({
+                    type: "response",
+                    command: "get_state",
+                    success: true,
+                    data: { sessionFile: `/tmp/pi-session-${fakes.length + 1}.json` },
+                  }),
+                );
+                fakes.push(fake);
+              }),
+            ),
+            Effect.tap(() => Effect.sync(() => exits.push(input.onExit))),
+            Effect.map((fake) => fake.transport),
+          ),
+      });
+      const threadId = ThreadId.make("pi-int-replace");
+
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const replacement = yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+
+      yield* exits[0]!;
+
+      expect(yield* adapter.hasSession(threadId)).toBe(true);
+      expect(replacement.resumeCursor).toEqual({ sessionFile: "/tmp/pi-session-2.json" });
+    }),
+  );
+
   it.effect("invokes extension commands with prompt even while Pi is streaming", () =>
     Effect.gen(function* () {
       const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
