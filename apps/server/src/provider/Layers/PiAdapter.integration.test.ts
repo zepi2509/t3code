@@ -728,7 +728,7 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       yield* fake.pushEvent({
         type: "queue_update",
         steering: ["steer me"],
-        followUp: [],
+        followUp: ["after this"],
       } as AgentSessionEvent);
       yield* fake.pushEvent({
         type: "queue_update",
@@ -744,20 +744,22 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       const turnStarts = events.filter((event) => event.type === "turn.started");
       expect(turnStarts.length).toBe(1);
       expect(fake.commands.some((command) => command.type === "steer")).toBe(true);
-      const queueStatuses = events.filter(
+      const queueWidgets = events.filter(
         (event) =>
           event.type === "provider.ui" &&
-          event.payload.effect.method === "setStatus" &&
-          event.payload.effect.statusKey === "pi-queue",
+          event.payload.effect.method === "setWidget" &&
+          event.payload.effect.widgetKey === "pi-follow-up-queue",
       );
-      expect(queueStatuses).toHaveLength(2);
-      expect(queueStatuses[0]).toMatchObject({
+      expect(queueWidgets).toHaveLength(2);
+      expect(queueWidgets[0]).toMatchObject({
         payload: {
-          effect: { statusText: "Steering queued: steer me" },
+          effect: { widgetLines: ["Queued messages", "1. after this"] },
         },
       });
-      expect(queueStatuses[1]).toMatchObject({
-        payload: { effect: { method: "setStatus", statusKey: "pi-queue" } },
+      expect(queueWidgets[1]).toMatchObject({
+        payload: {
+          effect: { method: "setWidget", widgetKey: "pi-follow-up-queue" },
+        },
       });
     }),
   );

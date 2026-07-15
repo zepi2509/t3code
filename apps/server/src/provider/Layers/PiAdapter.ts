@@ -73,6 +73,7 @@ import {
 } from "./PiRpcClient.ts";
 
 const PROVIDER = ProviderDriverKind.make("pi");
+export const buildPiCompactCommand = () => ({ type: "compact" as const });
 
 const PI_STATE_TIMEOUT_MS = 5_000;
 const PI_COMMANDS_TIMEOUT_MS = 5_000;
@@ -736,10 +737,6 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
               detail: { steering: event.steering, followUp: event.followUp },
             },
           });
-          const queuedMessages = [
-            ...event.steering.map((message) => `Steering queued: ${message}`),
-            ...event.followUp.map((message) => `Follow-up queued: ${message}`),
-          ];
           const queueStamp = yield* makeEventStamp();
           yield* offerRuntimeEvent({
             ...queueStamp,
@@ -750,10 +747,16 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             type: "provider.ui",
             payload: {
               effect: {
-                method: "setStatus",
-                statusKey: "pi-queue",
-                ...(queuedMessages.length > 0
-                  ? { statusText: queuedMessages.join(" · ").slice(0, 400) }
+                method: "setWidget",
+                widgetKey: "pi-follow-up-queue",
+                widgetPlacement: "aboveEditor",
+                ...(event.followUp.length > 0
+                  ? {
+                      widgetLines: [
+                        "Queued messages",
+                        ...event.followUp.map((message, index) => `${index + 1}. ${message}`),
+                      ],
+                    }
                   : {}),
               },
             },
@@ -1548,7 +1551,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     const command = buildPiTurnCommand({
       isMidTurn,
       isExtensionCommand: extensionCommand,
-      deliveryMode: input.deliveryMode,
+      ...(input.deliveryMode !== undefined ? { deliveryMode: input.deliveryMode } : {}),
       message: promptText,
       images,
     });
@@ -1594,6 +1597,24 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       yield* cancelPendingExtensionRequests(context);
       if (context.turnState) {
         yield* completeTurn(context, "interrupted", "Turn interrupted.");
+      }
+    },
+  );
+
+  const compactThread: PiAdapterShape["compactThread"] = Effect.fn("compactThread")(
+    function* (threadId) {
+      const context = yield* requireSession(threadId);
+      const response = yield* context.transport.request(
+        buildPiCompactCommand(),
+        `pi-compact-${yield* nextUuid}`,
+        PI_PROMPT_TIMEOUT_MS,
+      );
+      if (!piResponseSucceeded(response, "compact")) {
+        return yield* new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "compact",
+          detail: "Pi rejected the compact request.",
+        });
       }
     },
   );
@@ -1806,10 +1827,11 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
   return {
     provider: PROVIDER,
-    capabilities: { sessionModelSwitch: "in-session" as const },
+    capabilities: { sessionModelSwitch: "in-session" as const, manualCompaction: true },
     startSession,
     sendTurn,
     interruptTurn,
+    compactThread,
     readThread,
     rollbackThread,
     respondToRequest,
