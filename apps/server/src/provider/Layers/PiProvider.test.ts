@@ -15,7 +15,7 @@ const healthyPiScript = (models: ReadonlyArray<{ provider: string; id: string }>
   [
     "#!/bin/sh",
     'case "$1" in',
-    '  --version) printf "pi 0.80.6\\n"; exit 0 ;;',
+    '  --version) printf "pi 0.80.7\\n"; exit 0 ;;',
     `  *) printf '${JSON.stringify({ type: "response", command: "get_available_models", id: "pi-model-discovery", success: true, data: { models } })}\\n'; exit 0 ;;`,
     "esac",
     "",
@@ -112,7 +112,7 @@ it.layer(NodeServices.layer)("checkPiProviderStatus", (it) => {
     }),
   );
 
-  it.effect("reports ready/authenticated when models are available", () =>
+  it.effect("accepts newer Pi versions when models are available", () =>
     Effect.gen(function* () {
       const snapshot = yield* Effect.scoped(
         Effect.gen(function* () {

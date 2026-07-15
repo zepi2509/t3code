@@ -42,7 +42,6 @@ const PI_PRESENTATION = {
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({ optionDescriptors: [] });
 
 const PI_MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
-export const EXPECTED_PI_RPC_VERSION = "0.80.6";
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -249,7 +248,6 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
 
   // no auth query in pi; get_available_models only lists once a key is configured in ~/.pi/agent
   const authenticated = discovered.models.length > 0;
-  const compatibleVersion = parsedVersion === EXPECTED_PI_RPC_VERSION;
 
   return buildServerProvider({
     presentation: PI_PRESENTATION,
@@ -262,18 +260,14 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
     probe: {
       installed: true,
       version: parsedVersion,
-      status: authenticated && compatibleVersion ? "ready" : "warning",
+      status: authenticated ? "ready" : "warning",
       auth: { status: authenticated ? "authenticated" : "unknown", type: "pi" },
-      ...(!compatibleVersion
-        ? {
-            message: `T3 targets Pi RPC ${EXPECTED_PI_RPC_VERSION}, but ${parsedVersion ?? "an unknown version"} is installed. Update Pi before relying on RPC compatibility.`,
-          }
-        : authenticated
-          ? {}
-          : {
-              message:
-                "Pi is installed but no models are available. Configure a provider or API key in ~/.pi/agent (e.g. run `pi`) so models appear.",
-            }),
+      ...(authenticated
+        ? {}
+        : {
+            message:
+              "Pi is installed but no models are available. Configure a provider or API key in ~/.pi/agent (e.g. run `pi`) so models appear.",
+          }),
     },
   });
 });
