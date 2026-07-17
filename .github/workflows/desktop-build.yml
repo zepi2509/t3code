@@ -44,8 +44,19 @@ jobs:
       matrix: ${{ steps.build.outputs.matrix }}
       version: ${{ steps.build.outputs.version }}
       tag: ${{ steps.build.outputs.tag }}
+      ref: ${{ steps.build.outputs.ref }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: zepi2509/t3code
+          ref: main
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=@t3tools/scripts...
       - id: build
         shell: bash
         run: |
@@ -55,17 +66,22 @@ jobs:
           else
             matrix="$(node -e 'const builds=JSON.parse(process.argv[1]); console.log(JSON.stringify(builds.filter(({id}) => id === process.argv[2])))' "$all" "${{ inputs.target }}")"
           fi
+          source_ref="$(git rev-parse HEAD)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "ref=$source_ref" >> "$GITHUB_OUTPUT"
           if [[ -n "${{ inputs.upstream_tag }}" ]]; then
             version="${{ inputs.upstream_tag }}"
             version="${version#v}"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
           else
-            base_version="$(node -p "require('./apps/desktop/package.json').version")"
             date="$(node -p "new Date().toISOString().slice(0, 10).replaceAll('-', '')")"
-            version="${base_version}-nightly.${date}.${GITHUB_RUN_NUMBER}"
+            node scripts/resolve-nightly-release.ts \
+              --date "$date" \
+              --run-number "$GITHUB_RUN_NUMBER" \
+              --sha "$source_ref" \
+              --github-output
           fi
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -78,6 +94,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: zepi2509/t3code
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
@@ -125,6 +144,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: zepi2509/t3code
+          ref: ${{ needs.prepare.outputs.ref }}
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
         with:
@@ -154,7 +176,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.prepare.outputs.ref }}
           name: T3 Code fork build based on ${{ inputs.upstream_tag || needs.prepare.outputs.version }}
           body: >-
             ${{ inputs.upstream_url && format('Based on upstream release: {0}', inputs.upstream_url) || 'Manual fork desktop build.' }}
