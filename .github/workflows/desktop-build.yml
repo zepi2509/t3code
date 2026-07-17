@@ -50,15 +50,10 @@ jobs:
         with:
           repository: zepi2509/t3code
           ref: main
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=@t3tools/scripts...
       - id: build
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           all='[{"id":"linux-x64","runner":"ubuntu-24.04","platform":"linux","target":"AppImage","arch":"x64"},{"id":"macos-arm64","runner":"macos-26","platform":"mac","target":"dmg","arch":"arm64"},{"id":"macos-x64","runner":"macos-26","platform":"mac","target":"dmg","arch":"x64"},{"id":"windows-x64","runner":"windows-2025","platform":"win","target":"nsis","arch":"x64"}]'
           if [[ "${{ inputs.target }}" == "all" ]]; then
@@ -75,12 +70,10 @@ jobs:
             echo "version=$version" >> "$GITHUB_OUTPUT"
             echo "tag=v$version" >> "$GITHUB_OUTPUT"
           else
-            date="$(node -p "new Date().toISOString().slice(0, 10).replaceAll('-', '')")"
-            node scripts/resolve-nightly-release.ts \
-              --date "$date" \
-              --run-number "$GITHUB_RUN_NUMBER" \
-              --sha "$source_ref" \
-              --github-output
+            upstream_tag="$(gh api 'repos/pingdotgg/t3code/releases?per_page=100' --jq 'map(select((.draft | not) and .prerelease and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]{8}\\.[0-9]+$"))))[0].tag_name')"
+            version="${upstream_tag#v}.fork.${GITHUB_RUN_NUMBER}"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
           fi
 
   build_wsl_node_pty:
