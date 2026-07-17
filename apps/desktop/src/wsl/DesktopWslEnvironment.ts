@@ -224,15 +224,11 @@ const NODE_PTY_PROBE_SCRIPT = (
 ) => `printf 'nodePath:%s\\n' "$(command -v node 2>/dev/null)"
 printf 'resolvedPath:%s\\n' "$PATH"
 cd ${shellQuote(linuxServerDir)} && node <<'NODE' >/dev/null 2>&1
-// The server bundle externalizes its deps to node_modules, and the WSL Node
-// can't read inside app.asar, so confirm those deps are unpacked on the real
-// filesystem before reporting the backend healthy. "effect" is the framework
-// every server module imports; resolving it validates the whole node_modules
-// tree. Exit 3 marks this distinct from a node-pty problem so the caller can
-// report it accurately instead of letting the server crash on
-// ERR_MODULE_NOT_FOUND at launch (which, in wsl-only mode, would just fail to
-// launch with no fallback).
-try { require.resolve("effect"); } catch (_e) { process.exit(3); }
+// Desktop builds bundle the server's JavaScript dependencies. fff remains
+// external because its binaries are platform-specific, so resolving it verifies
+// the small native dependency set was unpacked for WSL. Exit 3 distinguishes a
+// packaging failure from an incompatible node-pty prebuild.
+try { require.resolve("@ff-labs/fff-node"); } catch (_e) { process.exit(3); }
 const fs = require("node:fs");
 const path = require("node:path");
 const pkgDir = path.dirname(require.resolve("node-pty/package.json"));
@@ -443,16 +439,14 @@ const ensureNodePtyImpl = (
       } as const;
     }
 
-    // Server dependencies (e.g. "effect") couldn't be resolved on the WSL
-    // filesystem — a packaging regression, since the server bundle needs its
-    // node_modules unpacked from the asar. Fatal so wsl-only mode falls back to
-    // Windows and dual mode surfaces the reason inline, instead of the server
-    // crash-looping on ERR_MODULE_NOT_FOUND once it actually launches.
+    // The external native dependencies could not be resolved on the WSL
+    // filesystem. Fatal so wsl-only mode falls back to Windows and dual mode
+    // surfaces the packaging failure instead of crash-looping the server.
     if (probe.exitCode === 3) {
       return {
         ok: false,
         reason:
-          "WSL server dependencies could not be loaded (for example \"effect\"). The server's bundled node_modules is not readable by the WSL distro's Node — this is a packaging problem with this build. Please report it.",
+          "WSL server native dependencies could not be loaded. This is a packaging problem with this build. Please report it.",
         fatal: true,
       } as const;
     }

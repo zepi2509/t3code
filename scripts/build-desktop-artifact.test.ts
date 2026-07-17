@@ -486,9 +486,13 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       );
 
       const win = config.win as Record<string, unknown>;
+      const asarUnpack = config.asarUnpack as ReadonlyArray<string>;
       assert.equal(win.icon, "icon.ico");
       assert.equal(win.signAndEditExecutable, true);
       assert.notProperty(win, "azureSignOptions");
+      assert.include(asarUnpack, "apps/server/dist/**/*");
+      assert.include(asarUnpack, "node_modules/node-pty/**/*");
+      assert.notInclude(asarUnpack, "**/node_modules/**");
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );
 

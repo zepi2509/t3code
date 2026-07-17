@@ -418,8 +418,8 @@ const resolveWslStartConfig = Effect.fn("desktop.backendConfiguration.resolveWsl
   // archive FILE. The Windows primary reads its entry through
   // ELECTRON_RUN_AS_NODE (asar-aware), but the WSL backend launches plain
   // `wsl.exe -- node`, which can't read inside an asar. electron-builder unpacks
-  // the server bundle + node-pty (see asarUnpack in build-desktop-artifact.ts)
-  // to the app.asar.unpacked sibling, so point WSL there. In dev appRoot is
+  // the bundled server output and its native dependencies (see asarUnpack in
+  // build-desktop-artifact.ts) to the app.asar.unpacked sibling, so point WSL there. In dev appRoot is
   // already a real directory, so this is a no-op.
   const wslAppRoot = environment.isPackaged
     ? environment.path.join(environment.resourcesPath, "app.asar.unpacked")

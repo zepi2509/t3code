@@ -575,6 +575,14 @@ interface StagePackageJson {
 
 export const STAGE_INSTALL_ARGS = ["install", "--prod"] as const;
 export const DESKTOP_ASAR_UNPACK = ["node_modules/@ff-labs/fff-bin-*/**/*"] as const;
+export const WINDOWS_WSL_ASAR_UNPACK = [
+  "apps/server/dist/**/*",
+  "node_modules/@ff-labs/fff-node/**/*",
+  "node_modules/@ff-labs/fff-bin-linux-*/**/*",
+  "node_modules/@yuuang/ffi-rs-linux-*/**/*",
+  "node_modules/ffi-rs/**/*",
+  "node_modules/node-pty/**/*",
+] as const;
 
 export interface MacPasskeySigningConfiguration {
   readonly appId: string;
@@ -1384,20 +1392,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     directories: {
       buildResources: "apps/desktop/resources",
     },
-    // The Windows primary backend runs the server bundle through
-    // ELECTRON_RUN_AS_NODE (asar-aware), so it reads bin.mjs straight out of
-    // app.asar. The WSL backend instead launches plain `wsl.exe -- node`, which
-    // cannot read inside an asar archive, so everything it loads must be on the
-    // real filesystem. The server bundle externalizes its runtime dependencies
-    // (effect, @effect/*, node-pty, ...) to node_modules rather than inlining
-    // them, so unpacking just the bundle + node-pty isn't enough — the Linux Node
-    // fails with ERR_MODULE_NOT_FOUND (e.g. "Cannot find package 'effect'") before
-    // it even reaches node-pty. Unpack the server bundle AND the whole
-    // node_modules tree so every import resolves (this also covers the fff native
-    // binaries in DESKTOP_ASAR_UNPACK). The Windows primary keeps reading the same
-    // files through the asar (transparently redirected to the unpacked copy), so
-    // there's no duplication.
-    asarUnpack: [...DESKTOP_ASAR_UNPACK, "apps/server/dist/**", "**/node_modules/**"],
+    // WSL cannot read app.asar. Windows desktop builds bundle the server's JS
+    // dependencies into dist and unpack only the remaining native packages,
+    // avoiding the thousands of loose files that made every update installation
+    // slow under antivirus scanning.
+    asarUnpack: [...DESKTOP_ASAR_UNPACK, ...(platform === "win" ? WINDOWS_WSL_ASAR_UNPACK : [])],
   };
   const updateChannel = resolveDesktopUpdateChannel(version);
   const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
@@ -1637,6 +1636,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     yield* runCommand(
       ChildProcess.make(spawnCommand.command, spawnCommand.args, {
         cwd: repoRoot,
+        env:
+          options.platform === "win"
+            ? { ...process.env, T3CODE_DESKTOP_SERVER_BUNDLE_DEPENDENCIES: "1" }
+            : process.env,
         shell: spawnCommand.shell,
       }),
       { label: "vp run build:desktop", verbose: options.verbose },

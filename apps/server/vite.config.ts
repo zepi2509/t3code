@@ -10,9 +10,16 @@ const bundledPackagePrefixes = [
   "effect-acp",
   "effect-codex-app-server",
 ];
+const desktopExternalPackagePrefixes = ["@ff-labs/fff-node", "node-pty"];
 
 export function shouldBundleCliDependency(id: string): boolean {
   return bundledPackagePrefixes.some((prefix) => id.startsWith(prefix));
+}
+
+export function shouldBundleDesktopServerDependency(id: string): boolean {
+  return !desktopExternalPackagePrefixes.some(
+    (prefix) => id === prefix || id.startsWith(`${prefix}/`),
+  );
 }
 
 const repoEnv = loadRepoEnv();
@@ -35,7 +42,10 @@ export default mergeConfig(
       sourcemap: true,
       clean: true,
       deps: {
-        alwaysBundle: shouldBundleCliDependency,
+        alwaysBundle:
+          process.env.T3CODE_DESKTOP_SERVER_BUNDLE_DEPENDENCIES === "1"
+            ? shouldBundleDesktopServerDependency
+            : shouldBundleCliDependency,
         onlyBundle: false,
       },
       banner: {
