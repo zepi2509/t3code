@@ -64,17 +64,27 @@ jobs:
           source_ref="$(git rev-parse HEAD)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "ref=$source_ref" >> "$GITHUB_OUTPUT"
-          if [[ -n "${{ inputs.upstream_tag }}" ]]; then
-            version="${{ inputs.upstream_tag }}"
-            version="${version#v}"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          else
+          upstream_tag="${{ inputs.upstream_tag }}"
+          if [[ -z "$upstream_tag" ]]; then
             upstream_tag="$(gh api 'repos/pingdotgg/t3code/releases?per_page=100' --jq 'map(select((.draft | not) and .prerelease and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-nightly\\.[0-9]{8}\\.[0-9]+$"))))[0].tag_name')"
-            version="${upstream_tag#v}.fork.${GITHUB_RUN_NUMBER}"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-            echo "tag=v$version" >> "$GITHUB_OUTPUT"
           fi
+          version="${upstream_tag#v}"
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[0-9]+$ ]]; then
+            prefix="${version%.*}"
+            build_number="${version##*.}"
+            while read -r fork_tag; do
+              candidate="${fork_tag#v}"
+              if [[ "$candidate" == "$prefix".* ]]; then
+                candidate_number="${candidate#"$prefix".}"
+                if [[ "$candidate_number" =~ ^[0-9]+$ ]] && (( candidate_number > build_number )); then
+                  build_number="$candidate_number"
+                fi
+              fi
+            done < <(gh api 'repos/zepi2509/t3code/releases?per_page=100' --jq '.[].tag_name')
+            version="$prefix.$((build_number + 1))"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
   build_wsl_node_pty:
     name: Build WSL node-pty (linux-x64)
