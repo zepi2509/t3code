@@ -12,6 +12,7 @@ import {
   deriveActivePlanState,
   derivePendingApprovals,
   derivePendingUserInputs,
+  deriveProviderUIState,
   deriveTimelineEntries,
   deriveWorkLogEntries,
   findLatestProposedPlan,
@@ -47,6 +48,54 @@ function makeActivity(overrides: {
     ...(overrides.sequence !== undefined ? { sequence: overrides.sequence } : {}),
   };
 }
+
+describe("deriveProviderUIState", () => {
+  it("applies keyed status/widget replacement and preserves transient native effects", () => {
+    const state = deriveProviderUIState([
+      makeActivity({
+        kind: "provider.ui",
+        payload: { method: "setStatus", statusKey: "a", statusText: "one" },
+      }),
+      makeActivity({
+        kind: "provider.ui",
+        payload: { method: "setStatus", statusKey: "a", statusText: "two" },
+      }),
+      makeActivity({ kind: "provider.ui", payload: { method: "setStatus", statusKey: "a" } }),
+      makeActivity({
+        kind: "provider.ui",
+        payload: {
+          method: "setStatus",
+          statusKey: "mode",
+          statusText: "\u001b[38;5;214m⚡ FULL\u001b[39m",
+        },
+      }),
+      makeActivity({
+        kind: "provider.ui",
+        payload: {
+          method: "setWidget",
+          widgetKey: "w",
+          widgetLines: ["hello"],
+          widgetPlacement: "belowEditor",
+        },
+      }),
+      makeActivity({ kind: "provider.ui", payload: { method: "setTitle", title: "Pi title" } }),
+      makeActivity({
+        id: "notify",
+        kind: "provider.ui",
+        payload: { method: "notify", message: "Done", notifyType: "info" },
+      }),
+      makeActivity({
+        id: "editor",
+        kind: "provider.ui",
+        payload: { method: "set_editor_text", text: "prefill" },
+      }),
+    ]);
+    expect(state.statuses).toEqual([{ key: "mode", text: "⚡ FULL" }]);
+    expect(state.widgets).toEqual([{ key: "w", lines: ["hello"], placement: "belowEditor" }]);
+    expect(state.title).toBe("Pi title");
+    expect(state.transient.map((entry) => entry.id)).toEqual(["editor", "notify"]);
+  });
+});
 
 describe("derivePendingApprovals", () => {
   it("tracks open approvals and removes resolved ones", () => {

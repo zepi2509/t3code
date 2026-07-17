@@ -26,6 +26,8 @@ const RuntimeEventRawSource = Schema.Union([
   Schema.Literal("claude.sdk.permission"),
   Schema.Literal("codex.sdk.thread-event"),
   Schema.Literal("opencode.sdk.event"),
+  Schema.Literal("pi.rpc.event"),
+  Schema.Literal("pi.rpc.extension-ui"),
   Schema.Literal("acp.jsonrpc"),
   Schema.TemplateLiteral(["acp.", Schema.String, ".extension"]),
 ]);
@@ -193,6 +195,7 @@ const ProviderRuntimeEventType = Schema.Literals([
   "files.persisted",
   "runtime.warning",
   "runtime.error",
+  "provider.ui",
 ]);
 export type ProviderRuntimeEventType = typeof ProviderRuntimeEventType.Type;
 
@@ -244,6 +247,7 @@ const FilesPersistedType = Schema.Literal("files.persisted");
 const ToolDeniedType = Schema.Literal("tool.denied");
 const RuntimeWarningType = Schema.Literal("runtime.warning");
 const RuntimeErrorType = Schema.Literal("runtime.error");
+const ProviderUIType = Schema.Literal("provider.ui");
 
 const ProviderRuntimeEventBase = Schema.Struct({
   eventId: EventId,
@@ -446,6 +450,13 @@ export const UserInputQuestion = Schema.Struct({
   multiSelect: Schema.optional(Schema.Boolean).pipe(
     Schema.withConstructorDefault(Effect.succeed(false)),
   ),
+  inputKind: Schema.optional(Schema.Literals(["select", "confirm", "input", "editor"])),
+  title: Schema.optional(TrimmedNonEmptyStringSchema),
+  message: Schema.optional(Schema.String),
+  placeholder: Schema.optional(Schema.String),
+  prefill: Schema.optional(Schema.String),
+  multiline: Schema.optional(Schema.Boolean),
+  timeoutMs: Schema.optional(PositiveInt),
 });
 export type UserInputQuestion = typeof UserInputQuestion.Type;
 
@@ -610,6 +621,30 @@ const RuntimeErrorPayload = Schema.Struct({
   detail: Schema.optional(Schema.Unknown),
 });
 export type RuntimeErrorPayload = typeof RuntimeErrorPayload.Type;
+
+export const ProviderUIEffect = Schema.Union([
+  Schema.Struct({
+    method: Schema.Literal("notify"),
+    message: Schema.String,
+    notifyType: Schema.Literals(["info", "warning", "error"]),
+  }),
+  Schema.Struct({
+    method: Schema.Literal("setStatus"),
+    statusKey: TrimmedNonEmptyStringSchema,
+    statusText: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({
+    method: Schema.Literal("setWidget"),
+    widgetKey: TrimmedNonEmptyStringSchema,
+    widgetLines: Schema.optional(Schema.Array(Schema.String)),
+    widgetPlacement: Schema.Literals(["aboveEditor", "belowEditor"]),
+  }),
+  Schema.Struct({ method: Schema.Literal("setTitle"), title: Schema.String }),
+  Schema.Struct({ method: Schema.Literal("set_editor_text"), text: Schema.String }),
+]);
+export type ProviderUIEffect = typeof ProviderUIEffect.Type;
+
+const ProviderUIPayload = Schema.Struct({ effect: ProviderUIEffect });
 
 const ProviderRuntimeSessionStartedEvent = Schema.Struct({
   ...ProviderRuntimeEventBase.fields,
@@ -964,6 +999,13 @@ const ProviderRuntimeErrorEvent = Schema.Struct({
 });
 export type ProviderRuntimeErrorEvent = typeof ProviderRuntimeErrorEvent.Type;
 
+const ProviderRuntimeUIEvent = Schema.Struct({
+  ...ProviderRuntimeEventBase.fields,
+  type: ProviderUIType,
+  payload: ProviderUIPayload,
+});
+export type ProviderRuntimeUIEvent = typeof ProviderRuntimeUIEvent.Type;
+
 export const ProviderRuntimeEventV2 = Schema.Union([
   ProviderRuntimeSessionStartedEvent,
   ProviderRuntimeSessionConfiguredEvent,
@@ -1013,6 +1055,7 @@ export const ProviderRuntimeEventV2 = Schema.Union([
   ProviderRuntimeToolDeniedEvent,
   ProviderRuntimeWarningEvent,
   ProviderRuntimeErrorEvent,
+  ProviderRuntimeUIEvent,
 ]);
 export type ProviderRuntimeEventV2 = typeof ProviderRuntimeEventV2.Type;
 

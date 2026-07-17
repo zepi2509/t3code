@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { formatPendingPrimaryActionLabel } from "./ComposerPrimaryActions";
+import {
+  formatPendingPrimaryActionLabel,
+  MID_TURN_DELIVERY_ACTIONS,
+  midTurnPrimaryDeliveryMode,
+} from "./ComposerPrimaryActions";
+
+it("offers explicit mid-turn delivery choices", () => {
+  expect(MID_TURN_DELIVERY_ACTIONS).toEqual([
+    { mode: "steer", label: "Steer now" },
+    { mode: "follow-up", label: "Send after completion" },
+  ]);
+});
+
+it("changes the primary mid-turn action while Ctrl or Cmd is held", () => {
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: false, supportsFollowUp: true }),
+  ).toBe("steer");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: true }),
+  ).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: true, supportsFollowUp: true }),
+  ).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: false }),
+  ).toBe("steer");
+});
 
 describe("formatPendingPrimaryActionLabel", () => {
   it("returns 'Submitting...' while responding", () => {
