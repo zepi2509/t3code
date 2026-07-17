@@ -13,19 +13,65 @@ on:
           - macos-arm64
           - macos-x64
           - windows-x64
+          - all
       publish:
         description: Publish as a fork prerelease for automatic updates
         required: true
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        default: all
+      publish:
+        type: boolean
+        default: true
+      upstream_tag:
+        type: string
+        required: false
+      upstream_url:
+        type: string
+        required: false
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+      version: ${{ steps.build.outputs.version }}
+      tag: ${{ steps.build.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: build
+        shell: bash
+        run: |
+          all='[{"id":"linux-x64","runner":"ubuntu-24.04","platform":"linux","target":"AppImage","arch":"x64"},{"id":"macos-arm64","runner":"macos-26","platform":"mac","target":"dmg","arch":"arm64"},{"id":"macos-x64","runner":"macos-26","platform":"mac","target":"dmg","arch":"x64"},{"id":"windows-x64","runner":"windows-2025","platform":"win","target":"nsis","arch":"x64"}]'
+          if [[ "${{ inputs.target }}" == "all" ]]; then
+            matrix="$all"
+          else
+            matrix="$(node -e 'const builds=JSON.parse(process.argv[1]); console.log(JSON.stringify(builds.filter(({id}) => id === process.argv[2])))' "$all" "${{ inputs.target }}")"
+          fi
+          base_version="${{ inputs.upstream_tag }}"
+          base_version="${base_version#v}"
+          base_version="${base_version:-$(node -p "require('./apps/desktop/package.json').version")}" 
+          date="$(node -p "new Date().toISOString().slice(0, 10).replaceAll('-', '')")"
+          version="${base_version}-nightly.${date}.${GITHUB_RUN_NUMBER}"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
   build:
-    name: Build ${{ inputs.target }}
-    runs-on: ${{ startsWith(inputs.target, 'macos-') && 'macos-26' || inputs.target == 'windows-x64' && 'windows-2025' || 'ubuntu-24.04' }}
+    needs: prepare
+    name: Build ${{ matrix.id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -38,55 +84,70 @@ jobs:
           run-install: true
 
       - name: Install ImageMagick
-        if: inputs.target == 'linux-x64'
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
-
-      - id: release
-        name: Resolve fork build version
-        shell: bash
-        run: |
-          base_version="$(node -p "require('./apps/desktop/package.json').version")"
-          date="$(node -p "new Date().toISOString().slice(0, 10).replaceAll('-', '')")"
-          version="${base_version}-nightly.${date}.${GITHUB_RUN_NUMBER}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: Build unsigned desktop artifact
         shell: bash
         env:
           T3CODE_DESKTOP_UPDATE_REPOSITORY: ${{ github.repository }}
         run: |
-          case "${{ inputs.target }}" in
-            linux-x64) platform=linux; target=AppImage; arch=x64 ;;
-            macos-arm64) platform=mac; target=dmg; arch=arm64 ;;
-            macos-x64) platform=mac; target=dmg; arch=x64 ;;
-            windows-x64) platform=win; target=nsis; arch=x64 ;;
-          esac
           vp run dist:desktop:artifact \
-            --platform "$platform" \
-            --target "$target" \
-            --arch "$arch" \
-            --build-version "${{ steps.release.outputs.version }}"
+            --platform "${{ matrix.platform }}" \
+            --target "${{ matrix.target }}" \
+            --arch "${{ matrix.arch }}" \
+            --build-version "${{ needs.prepare.outputs.version }}"
+
+      - name: Disambiguate Intel macOS update manifest
+        if: matrix.id == 'macos-x64'
+        shell: bash
+        run: |
+          for manifest in release/*-mac.yml; do
+            mv "$manifest" "${manifest%.yml}-x64.yml"
+          done
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ inputs.target }}
+          name: desktop-${{ matrix.id }}
           path: release/*
           if-no-files-found: error
           retention-days: 14
 
+  publish:
+    if: inputs.publish
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release
+
+      - name: Merge macOS update manifests
+        shell: bash
+        run: |
+          for x64_manifest in release/*-mac-x64.yml; do
+            arm64_manifest="${x64_manifest%-x64.yml}.yml"
+            if [[ -f "$arm64_manifest" ]]; then
+              node scripts/merge-update-manifests.ts --platform mac "$arm64_manifest" "$x64_manifest"
+              rm "$x64_manifest"
+            fi
+          done
+
       - name: Publish fork prerelease
-        if: inputs.publish
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release.outputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: T3 Code fork build ${{ steps.release.outputs.version }}
+          name: T3 Code fork build based on ${{ inputs.upstream_tag || needs.prepare.outputs.version }}
+          body: >-
+            ${{ inputs.upstream_url && format('Based on upstream release: {0}', inputs.upstream_url) || 'Manual fork desktop build.' }}
           prerelease: true
           make_latest: false
-          generate_release_notes: true
           files: release/*
           fail_on_unmatched_files: true

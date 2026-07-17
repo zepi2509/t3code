@@ -14,6 +14,10 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    outputs:
+      build_release: ${{ steps.release.outputs.build_release }}
+      upstream_tag: ${{ steps.release.outputs.upstream_tag }}
+      upstream_url: ${{ steps.release.outputs.upstream_url }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,3 +30,30 @@ jobs:
           git fetch upstream main
           git merge --no-edit upstream/main
           git push origin HEAD:main
+
+      - id: release
+        name: Find new upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          upstream_tag="$(gh api repos/pingdotgg/t3code/releases/latest --jq .tag_name)"
+          upstream_url="$(gh api repos/pingdotgg/t3code/releases/latest --jq .html_url)"
+          release_name="T3 Code fork build based on $upstream_tag"
+          if gh release list --limit 100 --json name --jq '.[].name' | grep -Fxq "$release_name"; then
+            build_release=false
+          else
+            build_release=true
+          fi
+          echo "build_release=$build_release" >> "$GITHUB_OUTPUT"
+          echo "upstream_tag=$upstream_tag" >> "$GITHUB_OUTPUT"
+          echo "upstream_url=$upstream_url" >> "$GITHUB_OUTPUT"
+
+  desktop_release:
+    needs: sync
+    if: needs.sync.outputs.build_release == 'true'
+    uses: ./.github/workflows/desktop-build.yml
+    with:
+      target: all
+      publish: true
+      upstream_tag: ${{ needs.sync.outputs.upstream_tag }}
+      upstream_url: ${{ needs.sync.outputs.upstream_url }}
