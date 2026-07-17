@@ -1,0 +1,58 @@
+name: Desktop Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Platform to build
+        required: true
+        default: linux-x64
+        type: choice
+        options:
+          - linux-x64
+          - macos-arm64
+          - macos-x64
+          - windows-x64
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ inputs.target }}
+    runs-on: ${{ startsWith(inputs.target, 'macos-') && 'macos-26' || inputs.target == 'windows-x64' && 'windows-2025' || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Install ImageMagick
+        if: inputs.target == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
+      - name: Build unsigned desktop artifact
+        shell: bash
+        run: |
+          case "${{ inputs.target }}" in
+            linux-x64) platform=linux; target=AppImage; arch=x64 ;;
+            macos-arm64) platform=mac; target=dmg; arch=arm64 ;;
+            macos-x64) platform=mac; target=dmg; arch=x64 ;;
+            windows-x64) platform=win; target=nsis; arch=x64 ;;
+          esac
+          vp run dist:desktop:artifact --platform "$platform" --target "$target" --arch "$arch"
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ inputs.target }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 14
