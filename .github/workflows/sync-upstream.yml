@@ -36,8 +36,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          upstream_tag="$(gh api repos/pingdotgg/t3code/releases/latest --jq .tag_name)"
-          upstream_url="$(gh api repos/pingdotgg/t3code/releases/latest --jq .html_url)"
+          upstream_tag="$(gh api 'repos/pingdotgg/t3code/releases?per_page=10' --jq 'map(select(.draft | not))[0].tag_name')"
+          upstream_url="$(gh api 'repos/pingdotgg/t3code/releases?per_page=10' --jq 'map(select(.draft | not))[0].html_url')"
           release_name="T3 Code fork build based on $upstream_tag"
           if gh release list --limit 100 --json name --jq '.[].name' | grep -Fxq "$release_name"; then
             build_release=false

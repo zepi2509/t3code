@@ -55,11 +55,14 @@ jobs:
           else
             matrix="$(node -e 'const builds=JSON.parse(process.argv[1]); console.log(JSON.stringify(builds.filter(({id}) => id === process.argv[2])))' "$all" "${{ inputs.target }}")"
           fi
-          base_version="${{ inputs.upstream_tag }}"
-          base_version="${base_version#v}"
-          base_version="${base_version:-$(node -p "require('./apps/desktop/package.json').version")}" 
-          date="$(node -p "new Date().toISOString().slice(0, 10).replaceAll('-', '')")"
-          version="${base_version}-nightly.${date}.${GITHUB_RUN_NUMBER}"
+          if [[ -n "${{ inputs.upstream_tag }}" ]]; then
+            version="${{ inputs.upstream_tag }}"
+            version="${version#v}"
+          else
+            base_version="$(node -p "require('./apps/desktop/package.json').version")"
+            date="$(node -p "new Date().toISOString().slice(0, 10).replaceAll('-', '')")"
+            version="${base_version}-nightly.${date}.${GITHUB_RUN_NUMBER}"
+          fi
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
