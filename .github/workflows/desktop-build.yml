@@ -83,8 +83,41 @@ jobs:
               --github-output
           fi
 
-  build:
+  build_wsl_node_pty:
+    name: Build WSL node-pty (linux-x64)
     needs: prepare
+    if: inputs.target == 'all' || inputs.target == 'windows-x64'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: zepi2509/t3code
+          ref: ${{ needs.prepare.outputs.ref }}
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+      - name: Build Linux prebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          pty_pkg="$(node -e "console.log(require.resolve('node-pty/package.json', { paths: ['$GITHUB_WORKSPACE/apps/server'] }))")"
+          pty_dir="$(dirname "$pty_pkg")"
+          (cd "$pty_dir" && npx --yes node-gyp rebuild)
+          mkdir -p wsl-prebuild
+          cp "$pty_dir/build/Release/pty.node" wsl-prebuild/pty.node
+          file wsl-prebuild/pty.node
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wsl-node-pty-x64
+          path: wsl-prebuild/pty.node
+          if-no-files-found: error
+
+  build:
+    needs: [prepare, build_wsl_node_pty]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     name: Build ${{ matrix.id }}
     strategy:
       fail-fast: false
@@ -105,22 +138,38 @@ jobs:
           cache: true
           run-install: true
 
+      - name: Align package versions
+        run: node scripts/update-release-package-versions.ts "${{ needs.prepare.outputs.version }}"
+
+      - name: Download WSL node-pty prebuild
+        if: matrix.platform == 'win'
+        uses: actions/download-artifact@v7
+        with:
+          name: wsl-node-pty-x64
+          path: wsl-prebuild
+
       - name: Install ImageMagick
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-      - name: Build unsigned desktop artifact
+      - name: Build desktop artifact
         shell: bash
         env:
           T3CODE_DESKTOP_UPDATE_REPOSITORY: ${{ github.repository }}
         run: |
-          vp run dist:desktop:artifact \
-            --platform "${{ matrix.platform }}" \
-            --target "${{ matrix.target }}" \
-            --arch "${{ matrix.arch }}" \
+          args=(
+            --platform "${{ matrix.platform }}"
+            --target "${{ matrix.target }}"
+            --arch "${{ matrix.arch }}"
             --build-version "${{ needs.prepare.outputs.version }}"
+            --verbose
+          )
+          if [[ "${{ matrix.platform }}" == "win" ]]; then
+            args+=(--wsl-prebuild "$GITHUB_WORKSPACE/wsl-prebuild/pty.node")
+          fi
+          vp run dist:desktop:artifact "${args[@]}"
 
       - name: Disambiguate Intel macOS update manifest
         if: matrix.id == 'macos-x64'
