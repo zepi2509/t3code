@@ -61,6 +61,26 @@ jobs:
       - name: Test
         run: vp run test
 
+  nix:
+    name: Nix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Check flake
+        run: nix flake check --no-build --show-trace
+
+      - name: Build server and desktop
+        run: nix build .#server .#desktop --no-link --show-trace
+
+      - name: Smoke test server
+        run: nix run .#server -- --version
+
   mobile_native_static_analysis:
     name: Mobile Native Static Analysis
     runs-on: macos-26

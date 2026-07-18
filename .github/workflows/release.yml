@@ -67,7 +67,7 @@ jobs:
       !failure() && !cancelled() &&
       (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     outputs:
       release_channel: ${{ steps.release_meta.outputs.release_channel }}
       version: ${{ steps.release_meta.outputs.version }}
@@ -157,6 +157,18 @@ jobs:
 
       - name: Test
         run: vp run test
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Check Nix flake
+        run: nix flake check --no-build --show-trace
+
+      - name: Build Nix server and desktop packages
+        run: nix build .#server .#desktop --no-link --show-trace
+
+      - name: Smoke test Nix server package
+        run: nix run .#server -- --version
 
       - id: previous_tag
         name: Resolve previous release tag
