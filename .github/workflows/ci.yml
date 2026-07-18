@@ -65,6 +65,8 @@ jobs:
     name: Nix
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      FLAKE_REF: github:${{ github.repository }}/${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -82,10 +84,10 @@ jobs:
         run: nix flake check --no-build --show-trace
 
       - name: Build server and desktop
-        run: nix build .#server .#desktop --no-link --show-trace
+        run: nix build "$FLAKE_REF#server" "$FLAKE_REF#desktop" --no-link --show-trace
 
       - name: Smoke test server
-        run: nix run .#server -- --version
+        run: nix run "$FLAKE_REF#server" -- --version
 
   mobile_native_static_analysis:
     name: Mobile Native Static Analysis
