@@ -25,6 +25,10 @@
                 apps/{server,desktop,web}/package.json \
                 packages/contracts/package.json \
                 --replace-fail '"version": "0.0.28"' '"version": "${version}"'
+              substituteInPlace \
+                apps/desktop/src/shell/DesktopShellEnvironment.ts \
+                packages/shared/src/shell.ts \
+                --replace-fail '"/bin/bash"' '"${lib.getExe pkgs.bashInteractive}"'
             '';
           preBuild = ''
             export npm_config_nodedir=${pkgs.nodejs}
@@ -94,7 +98,12 @@
             "/share/applications"
             "/share/icons"
           ];
-          postBuild = "rm $out/bin/t3";
+          nativeBuildInputs = [pkgs.makeWrapper];
+          postBuild = ''
+            rm $out/bin/t3
+            wrapProgram $out/bin/t3code-desktop \
+              --add-flags --password-store=gnome-libsecret
+          '';
           passthru.unwrapped = desktopUnwrapped;
           meta =
             desktopUnwrapped.meta
