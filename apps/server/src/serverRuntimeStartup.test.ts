@@ -70,6 +70,57 @@ it.effect("enqueueCommand fails queued work when readiness fails", () =>
   ),
 );
 
+it.effect("interrupts provider turns orphaned by a server restart", () =>
+  Effect.gen(function* () {
+    const runningThreadId = ThreadId.make("thread-running-at-restart");
+    const dispatches = yield* Ref.make<ReadonlyArray<{ type: string; session: unknown }>>([]);
+
+    yield* ServerRuntimeStartup.interruptOrphanedProviderTurns().pipe(
+      Effect.provideService(ProjectionSnapshotQuery.ProjectionSnapshotQuery, {
+        getCommandReadModel: () =>
+          Effect.succeed({
+            threads: [
+              {
+                id: runningThreadId,
+                session: {
+                  threadId: runningThreadId,
+                  status: "running",
+                  providerName: "codex",
+                  runtimeMode: "full-access",
+                  activeTurnId: "turn-running-at-restart",
+                  lastError: null,
+                  updatedAt: "2026-01-01T00:00:00.000Z",
+                },
+              },
+              {
+                id: ThreadId.make("thread-ready-at-restart"),
+                session: { status: "ready" },
+              },
+            ],
+          } as never),
+      } as never),
+      Effect.provideService(OrchestrationEngine.OrchestrationEngineService, {
+        readEvents: () => Stream.empty,
+        dispatch: (command) =>
+          Ref.update(dispatches, (current) => [...current, command as never]).pipe(
+            Effect.as({ sequence: 1 }),
+          ),
+        streamDomainEvents: Stream.empty,
+      }),
+      Effect.provide(NodeServices.layer),
+    );
+
+    const [dispatch] = yield* Ref.get(dispatches);
+    assert.equal((yield* Ref.get(dispatches)).length, 1);
+    assert.equal(dispatch?.type, "thread.session.set");
+    assert.deepInclude(dispatch?.session, {
+      threadId: runningThreadId,
+      status: "interrupted",
+      activeTurnId: null,
+    });
+  }),
+);
+
 it.effect("launchStartupHeartbeat does not block the caller while counts are loading", () =>
   Effect.scoped(
     Effect.gen(function* () {

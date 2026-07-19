@@ -161,6 +161,45 @@ export const launchStartupHeartbeat = recordStartupHeartbeat.pipe(
   Effect.asVoid,
 );
 
+export const interruptOrphanedProviderTurns = Effect.fn(
+  "ServerRuntimeStartup.interruptOrphanedProviderTurns",
+)(function* () {
+  const crypto = yield* Crypto.Crypto;
+  const orchestrationEngine = yield* OrchestrationEngine.OrchestrationEngineService;
+  const projectionSnapshotQuery = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
+  const readModel = yield* projectionSnapshotQuery.getCommandReadModel();
+  const orphanedThreads = readModel.threads.filter(
+    (thread) => thread.session?.status === "starting" || thread.session?.status === "running",
+  );
+
+  yield* Effect.forEach(
+    orphanedThreads,
+    (thread) =>
+      Effect.gen(function* () {
+        const interruptedAt = DateTime.formatIso(yield* DateTime.now);
+        yield* orchestrationEngine.dispatch({
+          type: "thread.session.set",
+          commandId: CommandId.make(`server:startup-interrupt:${yield* crypto.randomUUIDv4}`),
+          threadId: thread.id,
+          session: {
+            ...thread.session!,
+            status: "interrupted",
+            activeTurnId: null,
+            updatedAt: interruptedAt,
+          },
+          createdAt: interruptedAt,
+        });
+      }),
+    { concurrency: 1 },
+  );
+
+  if (orphanedThreads.length > 0) {
+    yield* Effect.logInfo("interrupted provider turns orphaned by server restart", {
+      threadCount: orphanedThreads.length,
+    });
+  }
+});
+
 export const getAutoBootstrapDefaultModelSelection = (): ModelSelection => ({
   instanceId: ProviderInstanceId.make("codex"),
   model: DEFAULT_MODEL,
@@ -345,6 +384,9 @@ export const make = Effect.gen(function* () {
         yield* providerSessionReaper.start().pipe(Scope.provide(reactorScope));
       }),
     );
+
+    yield* Effect.logDebug("startup phase: reconciling orphaned provider turns");
+    yield* runStartupPhase("provider-turns.reconcile", interruptOrphanedProviderTurns());
 
     const welcomeBase = yield* resolveWelcomeBase;
     const environment = yield* serverEnvironment.getDescriptor;
