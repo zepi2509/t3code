@@ -29,7 +29,28 @@ jobs:
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch upstream main
           git merge --no-edit upstream/main
-          git push origin HEAD:main
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Sync vendored reference repos
+        run: node scripts/sync-reference-repos.ts
+
+      - name: Commit vendored repo sync
+        shell: bash
+        run: |
+          if git diff --quiet -- .repos; then
+            exit 0
+          fi
+          git add .repos
+          git commit -m "chore: sync vendored reference repos"
+
+      - name: Push updated main
+        run: git push origin HEAD:main
 
       - id: release
         name: Find new upstream release
