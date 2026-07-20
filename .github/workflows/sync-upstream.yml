@@ -15,6 +15,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     outputs:
+      ref: ${{ steps.sync.outputs.ref }}
       build_release: ${{ steps.release.outputs.build_release }}
       upstream_tag: ${{ steps.release.outputs.upstream_tag }}
       upstream_url: ${{ steps.release.outputs.upstream_url }}
@@ -22,35 +23,17 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Merge upstream main
+      - id: sync
+        name: Merge upstream main
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch upstream main
           git merge --no-edit upstream/main
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: true
-
-      - name: Sync vendored reference repos
-        run: node scripts/sync-reference-repos.ts
-
-      - name: Commit vendored repo sync
-        shell: bash
-        run: |
-          if git diff --quiet -- .repos; then
-            exit 0
-          fi
-          git add .repos
-          git commit -m "chore: sync vendored reference repos"
-
-      - name: Push updated main
-        run: git push origin HEAD:main
+          sync_ref="$(git rev-parse HEAD)"
+          git push origin HEAD:main
+          echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
 
       - id: release
         name: Find new upstream release
@@ -74,6 +57,7 @@ jobs:
     if: needs.sync.outputs.build_release == 'true'
     uses: ./.github/workflows/desktop-build.yml
     with:
+      ref: ${{ needs.sync.outputs.ref }}
       target: all
       publish: true
       upstream_tag: ${{ needs.sync.outputs.upstream_tag }}
