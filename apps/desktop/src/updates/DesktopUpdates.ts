@@ -480,7 +480,7 @@ export const make = Effect.gen(function* () {
       );
       yield* electronWindow.destroyAll;
       yield* electronUpdater.quitAndInstall({
-        isSilent: true,
+        isSilent: false,
         isForceRunAfter: true,
       });
       return { accepted: true, completed: false };

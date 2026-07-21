@@ -42,6 +42,10 @@ function makeHarness(options: UpdatesHarnessOptions = {}) {
   const feedUrls: ElectronUpdater.ElectronUpdaterFeedUrl[] = [];
   const listeners = new Map<string, Set<(...args: readonly unknown[]) => void>>();
   const sentStates: DesktopUpdateState[] = [];
+  const quitAndInstallOptions: Array<{
+    readonly isSilent: boolean;
+    readonly isForceRunAfter: boolean;
+  }> = [];
 
   const addListener = (eventName: string, listener: (...args: readonly unknown[]) => void) => {
     const eventListeners = listeners.get(eventName) ?? new Set();
@@ -83,7 +87,10 @@ function makeHarness(options: UpdatesHarnessOptions = {}) {
       checkCount += 1;
     }).pipe(Effect.andThen(options.checkForUpdates ?? Effect.void)),
     downloadUpdate: Effect.void,
-    quitAndInstall: () => Effect.void,
+    quitAndInstall: (options) =>
+      Effect.sync(() => {
+        quitAndInstallOptions.push(options);
+      }),
     on: (eventName, listener) =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -193,6 +200,7 @@ function makeHarness(options: UpdatesHarnessOptions = {}) {
     checkCount: () => checkCount,
     feedUrls: () => feedUrls,
     fullChangelog: () => fullChangelog,
+    quitAndInstallOptions,
     listenerCount: () =>
       Array.from(listeners.values()).reduce(
         (total, eventListeners) => total + eventListeners.size,
@@ -479,6 +487,25 @@ describe("DesktopUpdates", () => {
       ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
     }),
   );
+
+  it.effect("shows the native installer while applying a downloaded update", () => {
+    const harness = makeHarness();
+
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const updates = yield* DesktopUpdates.DesktopUpdates;
+        yield* updates.configure;
+        harness.emit("update-downloaded", { version: "1.2.4" });
+        yield* flushCallbacks;
+
+        const result = yield* updates.install;
+        assert.isTrue(result.accepted);
+        assert.deepStrictEqual(harness.quitAndInstallOptions, [
+          { isSilent: false, isForceRunAfter: true },
+        ]);
+      }),
+    ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+  });
 
   it.effect("clears quitting state after an unexpected install setup failure", () => {
     const harness = makeHarness({
