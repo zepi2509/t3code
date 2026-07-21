@@ -2,6 +2,7 @@ import "vite-plus/test/config";
 import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
+import { shouldBundleDesktopServerDependency } from "../../scripts/lib/desktop-server-dependencies.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 import packageJson from "./package.json" with { type: "json" };
 
@@ -11,16 +12,8 @@ const bundledPackagePrefixes = [
   "effect-acp",
   "effect-codex-app-server",
 ];
-const desktopExternalPackagePrefixes = ["@ff-labs/fff-node", "node-pty"];
-
 export function shouldBundleCliDependency(id: string): boolean {
   return bundledPackagePrefixes.some((prefix) => id.startsWith(prefix));
-}
-
-export function shouldBundleDesktopServerDependency(id: string): boolean {
-  return !desktopExternalPackagePrefixes.some(
-    (prefix) => id === prefix || id.startsWith(`${prefix}/`),
-  );
 }
 
 const repoEnv = loadRepoEnv();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { shouldBundleDesktopServerDependency } from "./vite.config.ts";
+import { shouldBundleDesktopServerDependency } from "../../scripts/lib/desktop-server-dependencies.ts";
 
 describe("desktop server bundle", () => {
   it("leaves only platform-native packages external", () => {

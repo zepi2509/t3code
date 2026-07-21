@@ -17,6 +17,7 @@ import {
   type WebAssetBrand,
 } from "./lib/brand-assets.ts";
 import { getDefaultBuildArch } from "./lib/build-target-arch.ts";
+import { shouldBundleDesktopServerDependency } from "./lib/desktop-server-dependencies.ts";
 import { loadRepoEnv } from "./lib/public-config.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 
@@ -1289,6 +1290,17 @@ function validateBundledClientAssets(clientDir: string) {
   });
 }
 
+export function resolveStagedServerDependencies(
+  dependencies: Record<string, string>,
+  platform: typeof BuildPlatform.Type,
+): Record<string, string> {
+  return platform === "win"
+    ? Object.fromEntries(
+        Object.entries(dependencies).filter(([name]) => !shouldBundleDesktopServerDependency(name)),
+      )
+    : dependencies;
+}
+
 export function resolveDesktopRuntimeDependencies(
   dependencies: Record<string, string> | undefined,
   catalog: Record<string, string>,
@@ -1733,7 +1745,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   }
 
   const stageDependencies = {
-    ...resolvedServerDependencies,
+    ...resolveStagedServerDependencies(resolvedServerDependencies, options.platform),
     ...resolvedDesktopRuntimeDependencies,
     ...resolveFffNativeDependencies(
       options.platform,
