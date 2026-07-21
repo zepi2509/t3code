@@ -26,11 +26,16 @@ jobs:
       - id: sync
         name: Merge upstream main
         run: |
+          base_ref="$(git rev-parse HEAD)"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch upstream main
           git merge --no-edit upstream/main
+          if ! git diff --quiet "$base_ref" -- .github/workflows; then
+            git restore --source="$base_ref" --staged --worktree .github/workflows
+            git commit -m "chore(ci): preserve fork workflows"
+          fi
           sync_ref="$(git rev-parse HEAD)"
           git push origin HEAD:main
           echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
@@ -54,7 +59,7 @@ jobs:
 
   desktop_release:
     needs: sync
-    if: needs.sync.outputs.build_release == 'true'
+    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.build_release == 'true' }}
     uses: ./.github/workflows/desktop-build.yml
     with:
       ref: ${{ needs.sync.outputs.ref }}
