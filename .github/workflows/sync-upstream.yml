@@ -2,7 +2,7 @@ name: Sync upstream
 
 on:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,9 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.sync.outputs.ref }}
-      build_release: ${{ steps.release.outputs.build_release }}
-      upstream_tag: ${{ steps.release.outputs.upstream_tag }}
-      upstream_url: ${{ steps.release.outputs.upstream_url }}
+      releases: ${{ steps.release.outputs.releases || '[]' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -41,29 +39,39 @@ jobs:
           echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
 
       - id: release
-        name: Find new upstream release
+        name: Find new upstream releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          upstream_tag="$(gh api 'repos/pingdotgg/t3code/releases?per_page=10' --jq 'map(select(.draft | not))[0].tag_name')"
-          upstream_url="$(gh api 'repos/pingdotgg/t3code/releases?per_page=10' --jq 'map(select(.draft | not))[0].html_url')"
-          release_name="T3 Code fork build based on $upstream_tag"
-          if gh release list --limit 100 --json name --jq '.[].name' | grep -Fxq "$release_name"; then
-            build_release=false
-          else
-            build_release=true
-          fi
-          echo "build_release=$build_release" >> "$GITHUB_OUTPUT"
-          echo "upstream_tag=$upstream_tag" >> "$GITHUB_OUTPUT"
-          echo "upstream_url=$upstream_url" >> "$GITHUB_OUTPUT"
+          gh api 'repos/pingdotgg/t3code/releases?per_page=10' > upstream-releases.json
+          gh api 'repos/${{ github.repository }}/releases?per_page=100' > fork-releases.json
+          releases="$(jq -cn --slurpfile upstream upstream-releases.json --slurpfile fork fork-releases.json '
+            $upstream[0]
+            | [ .[]
+                | select(.draft | not)
+                | . as $release
+                | select($fork[0] | any(
+                    .name == ("T3 Code fork build based on " + $release.tag_name)
+                    or .body == ("Based on upstream release: " + $release.html_url)
+                  ) | not)
+                | {upstream_tag: .tag_name, upstream_url: .html_url}
+              ]
+            | reverse
+          ')"
+          echo "releases=$releases" >> "$GITHUB_OUTPUT"
 
   desktop_release:
     needs: sync
-    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.build_release == 'true' }}
+    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.releases != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        release: ${{ fromJSON(needs.sync.outputs.releases) }}
     uses: ./.github/workflows/desktop-build.yml
     with:
       ref: ${{ needs.sync.outputs.ref }}
       target: all
       publish: true
-      upstream_tag: ${{ needs.sync.outputs.upstream_tag }}
-      upstream_url: ${{ needs.sync.outputs.upstream_url }}
+      upstream_tag: ${{ matrix.release.upstream_tag }}
+      upstream_url: ${{ matrix.release.upstream_url }}

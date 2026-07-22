@@ -232,7 +232,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           target_commitish: ${{ needs.prepare.outputs.ref }}
-          name: T3 Code fork build based on ${{ inputs.upstream_tag || needs.prepare.outputs.version }}
+          name: T3 Code fork ${{ needs.prepare.outputs.tag }}
           body: >-
             ${{ inputs.upstream_url && format('Based on upstream release: {0}', inputs.upstream_url) || 'Manual fork desktop build.' }}
           prerelease: true
