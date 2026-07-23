@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.sync.outputs.ref }}
-      releases: ${{ steps.release.outputs.releases || '[]' }}
+      build_release: ${{ steps.release.outputs.build_release }}
+      upstream_tag: ${{ steps.release.outputs.upstream_tag }}
+      upstream_url: ${{ steps.release.outputs.upstream_url }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,50 +41,36 @@ jobs:
           echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
 
       - id: release
-        name: Find new upstream releases
+        name: Find latest upstream release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --paginate --slurp 'repos/pingdotgg/t3code/releases?per_page=100' > upstream-release-pages.json
+          gh api 'repos/pingdotgg/t3code/releases?per_page=10' > upstream-releases.json
           gh api 'repos/${{ github.repository }}/releases?per_page=100' > fork-releases.json
-          releases="$(jq -cn --slurpfile upstream upstream-release-pages.json --slurpfile fork fork-releases.json '
-            ($upstream[0] | add) as $releases
-            | [ $releases[]
-                | select(.draft | not)
-                | . as $release
-                | select($fork[0] | any(
-                    .name == ("T3 Code fork build based on " + $release.tag_name)
-                    or .body == ("Based on upstream release: " + $release.html_url)
-                  ))
-              ] as $mirrored
-            | ($mirrored | map(.published_at) | min) as $cutoff
-            | if $cutoff == null then [] else
-                [ $releases[]
-                  | select((.draft | not) and .published_at >= $cutoff)
-                  | . as $release
-                  | select($fork[0] | any(
-                      .name == ("T3 Code fork build based on " + $release.tag_name)
-                      or .body == ("Based on upstream release: " + $release.html_url)
-                    ) | not)
-                  | {upstream_tag: .tag_name, upstream_url: .html_url}
-                ]
-                | reverse
-              end
-          ')"
-          echo "releases=$releases" >> "$GITHUB_OUTPUT"
+          upstream_tag="$(jq -r 'map(select(.draft | not))[0].tag_name // empty' upstream-releases.json)"
+          upstream_url="$(jq -r 'map(select(.draft | not))[0].html_url // empty' upstream-releases.json)"
+          mirrored="$(jq -r --arg tag "$upstream_tag" --arg url "$upstream_url" '
+            any(
+              .name == ("T3 Code fork build based on " + $tag)
+              or .body == ("Based on upstream release: " + $url)
+            )
+          ' fork-releases.json)"
+          if [[ -n "$upstream_tag" && "$mirrored" != true ]]; then
+            build_release=true
+          else
+            build_release=false
+          fi
+          echo "build_release=$build_release" >> "$GITHUB_OUTPUT"
+          echo "upstream_tag=$upstream_tag" >> "$GITHUB_OUTPUT"
+          echo "upstream_url=$upstream_url" >> "$GITHUB_OUTPUT"
 
   desktop_release:
     needs: sync
-    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.releases != '[]' }}
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        release: ${{ fromJSON(needs.sync.outputs.releases) }}
+    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.build_release == 'true' }}
     uses: ./.github/workflows/desktop-build.yml
     with:
       ref: ${{ needs.sync.outputs.ref }}
       target: all
       publish: true
-      upstream_tag: ${{ matrix.release.upstream_tag }}
-      upstream_url: ${{ matrix.release.upstream_url }}
+      upstream_tag: ${{ needs.sync.outputs.upstream_tag }}
+      upstream_url: ${{ needs.sync.outputs.upstream_url }}
