@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vite-plus/test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  ComposerPrimaryActions,
   formatPendingPrimaryActionLabel,
   MID_TURN_DELIVERY_ACTIONS,
   midTurnPrimaryDeliveryMode,
@@ -27,6 +30,68 @@ it("changes the primary mid-turn action while Ctrl or Cmd is held", () => {
     midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: false }),
   ).toBe("steer");
 });
+
+vi.mock("~/hooks/useSettings", () => ({
+  useEnvironmentIdentificationMode: () => "none",
+}));
+vi.mock("../SidebarStageBackdrop", () => ({
+  StageBackdropButtonArt: () => null,
+  useSidebarStageBackdropVariant: () => null,
+}));
+
+function renderPendingActions(isRunning: boolean) {
+  return renderToStaticMarkup(
+    createElement(ComposerPrimaryActions, {
+      compact: true,
+      pendingAction: {
+        questionIndex: 0,
+        isLastQuestion: true,
+        canAdvance: true,
+        isResponding: false,
+        isComplete: true,
+      },
+      isRunning,
+      supportsSteer: false,
+      supportsFollowUp: false,
+      showPlanFollowUpPrompt: false,
+      promptHasText: false,
+      isSendBusy: false,
+      sendDisabledReason: null,
+      isConnecting: false,
+      isEnvironmentUnavailable: false,
+      isPreparingWorktree: false,
+      hasSendableContent: false,
+      onPreviousPendingQuestion: () => {},
+      onInterrupt: () => {},
+      onSend: () => {},
+      onImplementPlanInNewThread: () => {},
+    }),
+  );
+}
+
+function renderStandaloneStop() {
+  return renderToStaticMarkup(
+    createElement(ComposerPrimaryActions, {
+      compact: true,
+      pendingAction: null,
+      isRunning: true,
+      supportsSteer: false,
+      supportsFollowUp: false,
+      showPlanFollowUpPrompt: false,
+      promptHasText: false,
+      isSendBusy: false,
+      sendDisabledReason: null,
+      isConnecting: false,
+      isEnvironmentUnavailable: false,
+      isPreparingWorktree: false,
+      hasSendableContent: false,
+      onPreviousPendingQuestion: () => {},
+      onInterrupt: () => {},
+      onSend: () => {},
+      onImplementPlanInNewThread: () => {},
+    }),
+  );
+}
 
 describe("formatPendingPrimaryActionLabel", () => {
   it("returns 'Submitting...' while responding", () => {
@@ -115,5 +180,21 @@ describe("formatPendingPrimaryActionLabel", () => {
         questionIndex: 5,
       }),
     ).toBe("Submit answers");
+  });
+});
+
+describe("ComposerPrimaryActions", () => {
+  it("offers Stop generation while a running turn is waiting for user input", () => {
+    expect(renderPendingActions(true)).toContain('aria-label="Stop generation"');
+  });
+
+  it("does not offer Stop generation for a pending request without a running turn", () => {
+    expect(renderPendingActions(false)).not.toContain('aria-label="Stop generation"');
+  });
+
+  it("matches the small pending action size without changing the standalone size", () => {
+    expect(renderPendingActions(true)).toContain("size-8 sm:size-7");
+    expect(renderStandaloneStop()).toContain("size-8 sm:h-8 sm:w-8");
+    expect(renderStandaloneStop()).not.toContain("sm:size-7");
   });
 });

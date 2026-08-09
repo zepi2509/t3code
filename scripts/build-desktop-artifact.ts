@@ -68,7 +68,7 @@ type StageWorkspaceConfig = typeof StageWorkspaceConfig.Type;
 const RepoRoot = Effect.service(Path.Path).pipe(
   Effect.flatMap((path) => path.fromFileUrl(new URL("..", import.meta.url))),
 );
-const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
+const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeWorkspaceConfig = Schema.decodeEffect(fromYaml(WorkspaceConfig));
 const decodeNodePtyManifest = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ version: Schema.String })),
@@ -93,6 +93,26 @@ interface PlatformConfig {
   readonly cliFlag: "--mac" | "--linux" | "--win";
   readonly defaultTarget: string;
   readonly archChoices: ReadonlyArray<typeof BuildArch.Type>;
+}
+
+export function resolveResourceMonitorRustTargets(
+  platform: typeof BuildPlatform.Type,
+  arch: typeof BuildArch.Type,
+): ReadonlyArray<string> {
+  if (platform === "mac") {
+    if (arch === "universal") {
+      return ["aarch64-apple-darwin", "x86_64-apple-darwin"];
+    }
+    return [arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin"];
+  }
+  if (platform === "linux") {
+    return [arch === "arm64" ? "aarch64-unknown-linux-gnu" : "x86_64-unknown-linux-gnu"];
+  }
+  return [arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc"];
+}
+
+export function resourceMonitorExecutableName(platform: typeof BuildPlatform.Type): string {
+  return platform === "win" ? "t3-resource-monitor.exe" : "t3-resource-monitor";
 }
 
 const PLATFORM_CONFIG: Record<typeof BuildPlatform.Type, PlatformConfig> = {
@@ -190,6 +210,19 @@ export class UnsupportedHostBuildPlatformError extends Schema.TaggedErrorClass<U
   }
 }
 
+export class UnsupportedDesktopBuildArchitectureError extends Schema.TaggedErrorClass<UnsupportedDesktopBuildArchitectureError>()(
+  "UnsupportedDesktopBuildArchitectureError",
+  {
+    platform: BuildPlatform,
+    arch: BuildArch,
+    supportedArchitectures: Schema.Array(BuildArch),
+  },
+) {
+  override get message(): string {
+    return `Unsupported architecture '${this.arch}' for ${this.platform}.`;
+  }
+}
+
 const InvalidMockUpdateServerPortReason = Schema.Literals([
   "not-numeric",
   "not-integer",
@@ -234,6 +267,20 @@ export class BuildCommandFailedError extends Schema.TaggedErrorClass<BuildComman
     ].filter((section): section is string => section !== undefined);
     const outputSuffix = outputSections.length > 0 ? `\n\n${outputSections.join("\n\n")}` : "";
     return `Command exited with non-zero exit code (${this.exitCode})${outputSuffix}`;
+  }
+}
+
+export class ResourceMonitorBuildOutputMissingError extends Schema.TaggedErrorClass<ResourceMonitorBuildOutputMissingError>()(
+  "ResourceMonitorBuildOutputMissingError",
+  {
+    binaryPath: Schema.String,
+    rustTarget: Schema.String,
+    platform: BuildPlatform,
+    arch: BuildArch,
+  },
+) {
+  override get message(): string {
+    return `Resource monitor build for ${this.rustTarget} did not produce ${this.binaryPath}.`;
   }
 }
 
@@ -580,6 +627,13 @@ interface StagePackageJson {
 }
 
 export const STAGE_INSTALL_ARGS = ["install", "--prod"] as const;
+export const DESKTOP_ELECTRON_LANGUAGES = ["en-US"] as const;
+export const DESKTOP_FILE_EXCLUSIONS = [
+  // T3 Code always passes the user's installed Claude executable to the SDK,
+  // so the SDK's optional platform packages (each a ~200MB bundled executable)
+  // are dead weight. The trailing dash keeps the SDK's own JS package.
+  "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
+] as const;
 export const DESKTOP_ASAR_UNPACK = ["node_modules/@ff-labs/fff-bin-*/**/*"] as const;
 export const WINDOWS_WSL_ASAR_UNPACK = [
   "apps/server/dist/**/*",
@@ -588,6 +642,13 @@ export const WINDOWS_WSL_ASAR_UNPACK = [
   "node_modules/@yuuang/ffi-rs-linux-*/**/*",
   "node_modules/ffi-rs/**/*",
   "node_modules/node-pty/**/*",
+] as const;
+export const WINDOWS_ASAR_UNPACK = [...DESKTOP_ASAR_UNPACK, ...WINDOWS_WSL_ASAR_UNPACK] as const;
+export const DESKTOP_EXTRA_RESOURCES = [
+  {
+    from: "apps/desktop/prod-resources/resource-monitor",
+    to: "resource-monitor",
+  },
 ] as const;
 
 export interface MacPasskeySigningConfiguration {
@@ -1040,6 +1101,14 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
   const target = mergeOptions(input.target, env.target, PLATFORM_CONFIG[platform].defaultTarget);
   const defaultArch = yield* getDefaultArch(platform);
   const arch = mergeOptions(input.arch, env.arch, defaultArch);
+  const supportedArchitectures = PLATFORM_CONFIG[platform].archChoices;
+  if (!supportedArchitectures.includes(arch)) {
+    return yield* new UnsupportedDesktopBuildArchitectureError({
+      platform,
+      arch,
+      supportedArchitectures: [...supportedArchitectures],
+    });
+  }
   const version = mergeOptions(input.buildVersion, env.version, undefined);
   const releaseDir = resolveBooleanFlag(input.mockUpdates, env.mockUpdates)
     ? "release-mock"
@@ -1110,6 +1179,81 @@ const runCommand = Effect.fn("runCommand")(function* (
       ...(stdout.trim() ? { stdoutTail: stdout } : {}),
       ...(stderr.trim() ? { stderrTail: stderr } : {}),
     });
+  }
+});
+
+const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* (input: {
+  readonly repoRoot: string;
+  readonly stageResourcesDir: string;
+  readonly platform: typeof BuildPlatform.Type;
+  readonly arch: typeof BuildArch.Type;
+  readonly verbose: boolean;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const manifestPath = path.join(input.repoRoot, "native/resource-monitor/Cargo.toml");
+  const executableName = resourceMonitorExecutableName(input.platform);
+  const rustTargets = resolveResourceMonitorRustTargets(input.platform, input.arch);
+  const builtBinaries: string[] = [];
+
+  for (const rustTarget of rustTargets) {
+    const spawnCommand = yield* resolveSpawnCommand("cargo", [
+      "build",
+      "--locked",
+      "--release",
+      "--manifest-path",
+      manifestPath,
+      "--target",
+      rustTarget,
+    ]);
+    yield* runCommand(
+      ChildProcess.make(spawnCommand.command, spawnCommand.args, {
+        cwd: input.repoRoot,
+        shell: spawnCommand.shell,
+      }),
+      {
+        label: `cargo build resource monitor (${rustTarget})`,
+        verbose: input.verbose,
+      },
+    );
+
+    const binaryPath = path.join(
+      input.repoRoot,
+      "native/resource-monitor/target",
+      rustTarget,
+      "release",
+      executableName,
+    );
+    if (!(yield* fs.exists(binaryPath))) {
+      return yield* new ResourceMonitorBuildOutputMissingError({
+        binaryPath,
+        rustTarget,
+        platform: input.platform,
+        arch: input.arch,
+      });
+    }
+    builtBinaries.push(binaryPath);
+  }
+
+  const destinationDirectory = path.join(input.stageResourcesDir, "resource-monitor");
+  const destinationPath = path.join(destinationDirectory, executableName);
+  yield* fs.remove(destinationDirectory, { recursive: true, force: true }).pipe(Effect.ignore);
+  yield* fs.makeDirectory(destinationDirectory, { recursive: true });
+
+  if (builtBinaries.length === 1) {
+    yield* fs.copyFile(builtBinaries[0]!, destinationPath);
+  } else {
+    yield* runCommand(
+      ChildProcess.make("lipo", ["-create", ...builtBinaries, "-output", destinationPath]),
+      {
+        label: "lipo resource monitor universal binary",
+        verbose: input.verbose,
+      },
+    );
+  }
+
+  if (input.platform !== "win") {
+    yield* fs.chmod(destinationPath, 0o755);
   }
 });
 
@@ -1410,6 +1554,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
     artifactName: "T3-Code-${version}-${arch}.${ext}",
+    electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
+    files: [...DESKTOP_FILE_EXCLUSIONS],
     directories: {
       buildResources: "apps/desktop/resources",
     },
@@ -1417,7 +1563,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     // dependencies into dist and unpack only the remaining native packages,
     // avoiding the thousands of loose files that made every update installation
     // slow under antivirus scanning.
-    asarUnpack: [...DESKTOP_ASAR_UNPACK, ...(platform === "win" ? WINDOWS_WSL_ASAR_UNPACK : [])],
+    ...(platform === "win" ? { asarUnpack: [...WINDOWS_ASAR_UNPACK] } : {}),
+    extraResources: DESKTOP_EXTRA_RESOURCES,
   };
   const updateChannel = resolveDesktopUpdateChannel(version);
   const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
@@ -1458,6 +1605,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       executableName: "t3code",
       icon: "icons",
       category: "Development",
+      // electron-builder turns these into MimeType=x-scheme-handler/<scheme>;
+      // in the .desktop entry (Exec already gets %U), so browsers can hand
+      // t3code:// OAuth callbacks to the app.
+      protocols: [
+        {
+          name: "T3 Code",
+          schemes: ["t3code", "t3code-dev"],
+        },
+      ],
       desktop: {
         entry: {
           StartupWMClass: "t3code",
@@ -1701,6 +1857,13 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
   yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
+  yield* stageResourceMonitor({
+    repoRoot,
+    stageResourcesDir,
+    platform: options.platform,
+    arch: options.arch,
+    verbose: options.verbose,
+  });
 
   yield* assertPlatformBuildResources(
     options.platform,

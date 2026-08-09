@@ -36,12 +36,13 @@ rl.on("line", (line: string) => {
       write({ type: "turn_start" });
       write({
         type: "message_update",
+        message: {},
         assistantMessageEvent: { type: "text_delta", delta: replyText },
       });
       lastAssistantText = replyText;
-      write({ type: "message_end" });
-      write({ type: "turn_end" });
-      write({ type: "agent_end" });
+      write({ type: "message_end", message: {} });
+      write({ type: "turn_end", message: {}, toolResults: [] });
+      write({ type: "agent_end", messages: [], willRetry: false });
       return;
     }
     case "get_last_assistant_text": {

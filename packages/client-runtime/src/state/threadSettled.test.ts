@@ -115,13 +115,15 @@ describe("effectiveSettled", () => {
             // Settled iff nothing blocks (pending work / live session) AND
             // the override says settled, or (with no override) a merged PR
             // or staleness auto-settles. The "active" pin suppresses both
-            // auto signals.
+            // auto signals, and an open PR suppresses the inactivity path:
+            // a thread with a PR out for review is never done, however quiet.
             expected:
               pending === undefined &&
               !running &&
               (settledOverride === "settled" ||
                 (settledOverride === null &&
-                  (changeRequestState === "merged" || inactivity === "stale"))),
+                  (changeRequestState === "merged" ||
+                    (changeRequestState !== "open" && inactivity === "stale")))),
           })),
         ),
       ),
@@ -161,6 +163,53 @@ describe("effectiveSettled", () => {
         changeRequestState: "closed",
       }),
     ).toBe(true);
+  });
+
+  it("settles immediately when a change request merges or closes", () => {
+    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+    for (const changeRequestState of ["merged", "closed"] as const) {
+      expect(
+        effectiveSettled(recentlyActive, {
+          now: NOW,
+          autoSettleAfterDays: null,
+          changeRequestState,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("never auto-settles a stale thread with an open change request", () => {
+    const stale = makeShell({ activityAt: STALE });
+    expect(
+      effectiveSettled(stale, {
+        now: NOW,
+        autoSettleAfterDays: 3,
+        changeRequestState: "open",
+      }),
+    ).toBe(false);
+    // An explicit user settle still wins: open PR only blocks the auto path.
+    const settled = makeShell({ settledOverride: "settled", activityAt: STALE });
+    expect(
+      effectiveSettled(settled, {
+        now: NOW,
+        autoSettleAfterDays: 3,
+        changeRequestState: "open",
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps an explicitly un-settled merged-PR thread active", () => {
+    const shell = makeShell({
+      settledOverride: "active",
+      activityAt: "2026-04-09T23:59:59.999Z",
+    });
+    expect(
+      effectiveSettled(shell, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        changeRequestState: "merged",
+      }),
+    ).toBe(false);
   });
 
   it("never settles a starting session, even with a settled override", () => {

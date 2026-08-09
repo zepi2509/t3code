@@ -544,10 +544,7 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      <DialogPopup
-        backdropClassName="bg-black/40 backdrop-blur-none"
-        className="workflow-dialog-surface max-w-xl overflow-hidden before:hidden"
-      >
+      <DialogPopup className="max-w-xl overflow-hidden">
         <div className="flex min-h-0 flex-col overflow-hidden border-foreground/10 bg-transparent">
           <DialogHeader className="border-b border-border/70 bg-foreground/[0.025] dark:border-transparent dark:bg-transparent">
             <DialogTitle>Publish repository</DialogTitle>
@@ -989,7 +986,6 @@ export default function GitActionsControl({
     () => (activeThreadRef ? { threadRef: activeThreadRef } : undefined),
     [activeThreadRef],
   );
-  const activeServerThread = useThread(activeThreadRef);
   const activeDraftThread = useComposerDraftStore((store) =>
     draftId
       ? store.getDraftSession(draftId)
@@ -997,6 +993,9 @@ export default function GitActionsControl({
         ? store.getDraftThreadByRef(activeThreadRef)
         : null,
   );
+  const activeServerThread = useThread(activeThreadRef, {
+    waitForShell: activeDraftThread !== null,
+  });
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false);
   const [dialogCommitMessage, setDialogCommitMessage] = useState("");
@@ -1694,7 +1693,7 @@ export default function GitActionsControl({
                 render={
                   <Button
                     aria-disabled="true"
-                    className="cursor-not-allowed rounded-e-none border-e-0 opacity-64 before:rounded-e-none"
+                    className="cursor-not-allowed rounded-e-none border-e-0 ps-[8.5px] opacity-64 before:rounded-e-none"
                     size="xs"
                     variant="outline"
                   />
@@ -1716,6 +1715,7 @@ export default function GitActionsControl({
             <Button
               variant="outline"
               size="xs"
+              className="ps-[8.5px]"
               disabled={isGitActionRunning || quickAction.disabled}
               onClick={runQuickAction}
             >
@@ -1828,16 +1828,13 @@ export default function GitActionsControl({
           }
         }}
       >
-        <DialogPopup
-          backdropClassName="bg-black/40 backdrop-blur-none"
-          className="command-palette-dialog-surface workflow-dialog-surface before:hidden"
-        >
+        <DialogPopup>
           <DialogHeader>
             <DialogTitle>{COMMIT_DIALOG_TITLE}</DialogTitle>
             <DialogDescription>{COMMIT_DIALOG_DESCRIPTION}</DialogDescription>
           </DialogHeader>
           <DialogPanel className="space-y-4">
-            <div className="space-y-3 rounded-lg border border-input bg-muted/40 p-3 text-xs dark:border-transparent dark:bg-white/[0.035]">
+            <div className="space-y-3 rounded-xl bg-zinc-25 p-3 text-sm ring-1 ring-black/5 dark:bg-white/[0.035] dark:ring-white/5">
               <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
                 <span className="text-muted-foreground">Branch</span>
                 <span className="flex items-center justify-between gap-2">
@@ -1845,9 +1842,7 @@ export default function GitActionsControl({
                     {gitStatusForActions?.refName ?? "(detached HEAD)"}
                   </span>
                   {isDefaultRef && (
-                    <span className="text-right text-warning text-xs">
-                      Warning: default refName
-                    </span>
+                    <span className="text-right text-warning">Warning: default refName</span>
                   )}
                 </span>
               </div>
@@ -1886,14 +1881,14 @@ export default function GitActionsControl({
                   <p className="font-medium">none</p>
                 ) : (
                   <div className="space-y-2">
-                    <ScrollArea className="h-44 rounded-md border border-input bg-background dark:border-transparent dark:bg-white/[0.025]">
+                    <ScrollArea className="h-44 rounded-lg bg-card ring-1 ring-black/5 dark:bg-white/[0.025] dark:ring-white/5">
                       <div className="space-y-1 p-1">
                         {allFiles.map((file) => {
                           const isExcluded = excludedFiles.has(file.path);
                           return (
                             <div
                               key={file.path}
-                              className="flex w-full items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors hover:bg-accent/50"
+                              className="flex w-full items-center gap-2 rounded-md px-2 py-1 font-mono hover:bg-accent/50"
                             >
                               {isEditingFiles && (
                                 <Checkbox
@@ -1952,7 +1947,7 @@ export default function GitActionsControl({
               </div>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-medium">Commit message (optional)</p>
+              <p className="text-sm font-medium">Commit message (optional)</p>
               <Textarea
                 value={dialogCommitMessage}
                 onChange={(event) => setDialogCommitMessage(event.target.value)}
@@ -1961,7 +1956,7 @@ export default function GitActionsControl({
               />
             </div>
           </DialogPanel>
-          <DialogFooter className="dark:border-transparent dark:bg-transparent">
+          <DialogFooter variant="bare">
             <Button
               variant="outline"
               size="sm"
@@ -2004,10 +1999,7 @@ export default function GitActionsControl({
           }
         }}
       >
-        <DialogPopup
-          backdropClassName="bg-black/40 backdrop-blur-none"
-          className="workflow-dialog-surface max-w-xl before:hidden"
-        >
+        <DialogPopup className="max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {pendingDefaultBranchActionCopy?.title ?? "Run action on default refName?"}

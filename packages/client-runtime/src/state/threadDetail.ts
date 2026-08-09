@@ -59,6 +59,10 @@ export function mergeEnvironmentThread(
     archivedAt: shell.archivedAt,
     settledOverride: shell.settledOverride,
     settledAt: shell.settledAt,
+    snoozedUntil: shell.snoozedUntil,
+    snoozedAt: shell.snoozedAt,
+    pinnedAt: shell.pinnedAt,
+    pinOrderKey: shell.pinOrderKey,
     session: shell.session,
   };
 }
