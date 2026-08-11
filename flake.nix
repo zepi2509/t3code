@@ -18,9 +18,10 @@
         desktopUnwrapped = pkgs.t3code.unwrapped.overrideAttrs (final: previous: {
           inherit version;
           src = self;
-          postPatch =
-            previous.postPatch
-            + ''
+          postPatch = ''
+              substituteInPlace apps/web/vite.config.ts \
+                --replace-fail 'const host = explicitHost || "localhost";' \
+                               'const host = explicitHost || "127.0.0.1";'
               substituteInPlace \
                 apps/{server,desktop,web}/package.json \
                 packages/contracts/package.json \
