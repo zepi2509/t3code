@@ -36,7 +36,6 @@ rl.on("line", (line: string) => {
       write({ type: "turn_start" });
       write({
         type: "message_update",
-        message: {},
         assistantMessageEvent: { type: "text_delta", delta: replyText },
       });
       lastAssistantText = replyText;

@@ -1,6 +1,6 @@
 /** Typed JSONL transport + pure parsing helpers for `pi --mode rpc`. */
 import type {
-  AgentSessionEvent,
+  JsonAgentSessionEvent,
   ModelInfo,
   RpcCommand,
   RpcExtensionUIRequest,
@@ -26,7 +26,7 @@ import { createModelCapabilities, getModelSelectionStringOptionValue } from "@t3
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 
 export type PiAgentEvent =
-  | AgentSessionEvent
+  | JsonAgentSessionEvent
   | {
       readonly type: "extension_error";
       readonly extensionPath: string;
@@ -69,6 +69,7 @@ const PI_EVENT_TYPES = new Set([
   "message_start",
   "message_update",
   "message_end",
+  "bash_execution_update",
   "tool_execution_start",
   "tool_execution_update",
   "tool_execution_end",
@@ -77,8 +78,11 @@ const PI_EVENT_TYPES = new Set([
   "compaction_end",
   "auto_retry_start",
   "auto_retry_end",
+  "summarization_retry_scheduled",
+  "summarization_retry_attempt_start",
+  "summarization_retry_finished",
   "extension_error",
-  // Pi 0.80.6 also emits these state/session events from AgentSession.
+  // Pi also emits these state/session events from AgentSession.
   "entry_appended",
   "session_info_changed",
   "thinking_level_changed",
@@ -157,7 +161,12 @@ function isValidPiEvent(msg: Record<string, unknown>, type: string): boolean {
     case "message_end":
       return isRecord(msg["message"]);
     case "message_update":
-      return isRecord(msg["message"]) && isRecord(msg["assistantMessageEvent"]);
+      return isRecord(msg["assistantMessageEvent"]);
+    case "bash_execution_update":
+      return (
+        (msg["id"] === undefined || typeof msg["id"] === "string") &&
+        typeof msg["delta"] === "string"
+      );
     case "tool_execution_start":
       return typeof msg["toolCallId"] === "string" && typeof msg["toolName"] === "string";
     case "tool_execution_update":
@@ -188,6 +197,7 @@ function isValidPiEvent(msg: Record<string, unknown>, type: string): boolean {
         typeof msg["willRetry"] === "boolean"
       );
     case "auto_retry_start":
+    case "summarization_retry_scheduled":
       return (
         typeof msg["attempt"] === "number" &&
         typeof msg["maxAttempts"] === "number" &&
@@ -196,6 +206,16 @@ function isValidPiEvent(msg: Record<string, unknown>, type: string): boolean {
       );
     case "auto_retry_end":
       return typeof msg["success"] === "boolean" && typeof msg["attempt"] === "number";
+    case "summarization_retry_attempt_start":
+      return (
+        msg["source"] === "branchSummary" ||
+        (msg["source"] === "compaction" &&
+          (msg["reason"] === "manual" ||
+            msg["reason"] === "threshold" ||
+            msg["reason"] === "overflow"))
+      );
+    case "summarization_retry_finished":
+      return true;
     case "extension_error":
       return (
         typeof msg["extensionPath"] === "string" &&
@@ -718,7 +738,7 @@ export const makePiRpcTransport = (options: MakePiRpcTransportOptions) =>
   });
 
 export type {
-  AgentSessionEvent,
+  JsonAgentSessionEvent,
   ModelInfo,
   RpcCommand,
   RpcExtensionUIRequest,

@@ -87,6 +87,22 @@ describe("classifyPiStdoutMessage / parsePiStdoutLine", () => {
 
   it("recognizes documented events and surfaces unknown future events", () => {
     expect(parsePiStdoutLine('{"type":"agent_start"}')).toMatchObject({ _tag: "event" });
+    expect(
+      parsePiStdoutLine(
+        '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"hi"}}',
+      ),
+    ).toMatchObject({ _tag: "event" });
+    expect(
+      parsePiStdoutLine(
+        '{"type":"summarization_retry_attempt_start","source":"compaction","reason":"threshold"}',
+      ),
+    ).toMatchObject({ _tag: "event" });
+    expect(parsePiStdoutLine('{"type":"bash_execution_update","delta":"output"}')).toMatchObject({
+      _tag: "event",
+    });
+    expect(parsePiStdoutLine('{"type":"summarization_retry_finished"}')).toMatchObject({
+      _tag: "event",
+    });
     expect(parsePiStdoutLine('{"type":"future_event","value":1}')).toEqual({
       _tag: "unknown",
       payload: { type: "future_event", value: 1 },

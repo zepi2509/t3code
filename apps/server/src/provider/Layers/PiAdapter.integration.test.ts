@@ -22,7 +22,7 @@ import { ServerConfig } from "../../config.ts";
 import type { PiAdapterShape } from "../Services/PiAdapter.ts";
 import { makePiAdapter } from "./PiAdapter.ts";
 import type {
-  AgentSessionEvent,
+  JsonAgentSessionEvent as AgentSessionEvent,
   PiRpcTransport,
   PiStdoutMessage,
   RpcCommand,

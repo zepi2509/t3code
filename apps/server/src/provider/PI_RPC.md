@@ -1,6 +1,6 @@
 # Pi RPC coverage
 
-T3 targets `@earendil-works/pi-coding-agent` and CLI **0.80.6**.
+T3 targets `@earendil-works/pi-coding-agent` and CLI **0.84.1**.
 
 Native mappings:
 

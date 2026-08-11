@@ -721,6 +721,13 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           // Low-level end is not terminal: retry, compaction, steering, or follow-up may follow.
           return;
 
+        case "bash_execution_update":
+        case "summarization_retry_scheduled":
+        case "summarization_retry_attempt_start":
+        case "summarization_retry_finished":
+          // Direct RPC bash is unused; surrounding compaction/fork operations own retry state.
+          return;
+
         case "agent_settled": {
           context.agentActive = false;
           if (context.turnState) yield* completeTurn(context, "completed");
