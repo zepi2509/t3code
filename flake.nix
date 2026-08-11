@@ -14,7 +14,7 @@
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
         inherit (pkgs) lib;
-        version = "0.0.32-unstable-${self.shortRev or self.dirtyShortRev or "dev"}";
+        version = "0.0.33-unstable-${self.shortRev or self.dirtyShortRev or "dev"}";
         desktopUnwrapped = pkgs.t3code.unwrapped.overrideAttrs (final: previous: {
           inherit version;
           src = self;
@@ -25,7 +25,7 @@
               substituteInPlace \
                 apps/{server,desktop,web}/package.json \
                 packages/contracts/package.json \
-                --replace-fail '"version": "0.0.32"' '"version": "${version}"'
+                --replace-fail '"version": "0.0.33"' '"version": "${version}"'
               substituteInPlace \
                 apps/desktop/src/shell/DesktopShellEnvironment.ts \
                 packages/shared/src/shell.ts \
