@@ -43,7 +43,7 @@
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
             fetcherVersion = 4;
-            hash = "";
+            hash = "sha256-SibfV/m+Agibmbh/nCoec/bzGae9FdlMgX7a+S9pByQ=";
           };
         });
         server = desktopUnwrapped.overrideAttrs (final: previous: {
