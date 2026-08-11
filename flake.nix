@@ -57,7 +57,7 @@
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
             fetcherVersion = 4;
-            hash = "";
+            hash = "sha256-okdYhqmHDyy9Qw/fmlE4JzSS/izoheOaTjlJL7rzros=";
           };
           buildPhase = ''
             runHook preBuild
