@@ -81,7 +81,7 @@ const PI_MESSAGES_TIMEOUT_MS = 5_000;
 // fork/new_session rebinds to a new session file — give it more headroom
 const PI_FORK_TIMEOUT_MS = 15_000;
 const PI_MODEL_OPTIONS_TIMEOUT_MS = 5_000;
-const PI_PROMPT_TIMEOUT_MS = 5_000;
+const PI_PROMPT_TIMEOUT_MS = 30_000;
 const PI_APPROVAL_TITLE_PREFIX = "[t3-tool-approval] ";
 
 // keep in sync with SENTINEL_COMMAND in t3-approvals.ts
