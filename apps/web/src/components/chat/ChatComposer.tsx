@@ -537,7 +537,6 @@ export interface ChatComposerHandle {
 
 export interface ChatComposerProps {
   composerDraftTarget: ScopedThreadRef | DraftId;
-  providerUIStatuses: ReadonlyArray<{ key: string; text: string }>;
   environmentId: EnvironmentId;
   routeKind: "server" | "draft";
   routeThreadRef: ScopedThreadRef;
@@ -659,7 +658,6 @@ export interface ChatComposerProps {
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const {
     composerDraftTarget,
-    providerUIStatuses,
     environmentId,
     routeKind,
     routeThreadRef,
@@ -1204,7 +1202,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const isComposerApprovalState = activePendingApproval !== null;
   const activePendingUserInput = pendingUserInputs[0] ?? null;
   const showComposerTopDrawer =
-    providerUIStatuses.length > 0 ||
     isComposerApprovalState ||
     pendingUserInputs.length > 0 ||
     (!isComposerCollapsedMobile && showPlanFollowUpPrompt && activeProposedPlan !== null);
@@ -2858,15 +2855,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           data-chat-composer-top-drawer="true"
           data-variant={activePendingApproval ? "warning" : "info"}
         >
-          {!isComposerCollapsedMobile && providerUIStatuses.length > 0 ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/50 px-4 py-1.5 text-[11px] text-muted-foreground">
-              {providerUIStatuses.map((status) => (
-                <span key={status.key} title={status.key} className="min-w-0 truncate">
-                  {status.text}
-                </span>
-              ))}
-            </div>
-          ) : null}
           {!isComposerCollapsedMobile && activePendingApproval ? (
             <div className="flex min-w-0 flex-wrap items-center gap-1 px-3 py-1.5 sm:px-4">
               <ComposerPendingApprovalPanel
