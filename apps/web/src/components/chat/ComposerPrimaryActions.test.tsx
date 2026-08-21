@@ -7,6 +7,35 @@ const stageArtworkState = vi.hoisted(() => ({
   variant: null as "nightly" | "dev" | null,
 }));
 
+import {
+  ComposerPrimaryActions,
+  formatPendingPrimaryActionLabel,
+  MID_TURN_DELIVERY_ACTIONS,
+  midTurnPrimaryDeliveryMode,
+} from "./ComposerPrimaryActions";
+
+it("offers explicit mid-turn delivery choices", () => {
+  expect(MID_TURN_DELIVERY_ACTIONS).toEqual([
+    { mode: "steer", label: "Steer now" },
+    { mode: "follow-up", label: "Send after completion" },
+  ]);
+});
+
+it("changes the primary mid-turn action while Ctrl or Cmd is held", () => {
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: false, supportsFollowUp: true }),
+  ).toBe("steer");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: true }),
+  ).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: false, metaKey: true, supportsFollowUp: true }),
+  ).toBe("follow-up");
+  expect(
+    midTurnPrimaryDeliveryMode({ ctrlKey: true, metaKey: false, supportsFollowUp: false }),
+  ).toBe("steer");
+});
+
 vi.mock("~/hooks/useSettings", () => ({
   useEnvironmentIdentificationMode: () => stageArtworkState.mode,
 }));
@@ -14,8 +43,6 @@ vi.mock("../SidebarStageBackdrop", () => ({
   StageBackdropButtonArt: ({ variant }: { variant: string }) => `stage-${variant}`,
   useSidebarStageBackdropVariant: (enabled = true) => (enabled ? stageArtworkState.variant : null),
 }));
-
-import { ComposerPrimaryActions, formatPendingPrimaryActionLabel } from "./ComposerPrimaryActions";
 
 function renderPendingActions(isRunning: boolean) {
   return renderToStaticMarkup(
@@ -29,6 +56,8 @@ function renderPendingActions(isRunning: boolean) {
         isComplete: true,
       },
       isRunning,
+      supportsSteer: false,
+      supportsFollowUp: false,
       showPlanFollowUpPrompt: false,
       promptHasText: false,
       isSendBusy: false,
@@ -39,6 +68,7 @@ function renderPendingActions(isRunning: boolean) {
       hasSendableContent: false,
       onPreviousPendingQuestion: () => {},
       onInterrupt: () => {},
+      onSend: () => {},
       onImplementPlanInNewThread: () => {},
     }),
   );
@@ -50,6 +80,8 @@ function renderRunningActions(showSendWhileRunning: boolean, hasSendableContent:
       compact: true,
       pendingAction: null,
       isRunning: true,
+      supportsSteer: false,
+      supportsFollowUp: false,
       showPlanFollowUpPrompt: false,
       promptHasText: hasSendableContent,
       isSendBusy: false,
@@ -61,6 +93,7 @@ function renderRunningActions(showSendWhileRunning: boolean, hasSendableContent:
       showSendWhileRunning,
       onPreviousPendingQuestion: () => {},
       onInterrupt: () => {},
+      onSend: () => {},
       onImplementPlanInNewThread: () => {},
     }),
   );
@@ -72,6 +105,8 @@ function renderSendButton(sendDisabledReason: string | null = null) {
       compact: true,
       pendingAction: null,
       isRunning: false,
+      supportsSteer: false,
+      supportsFollowUp: false,
       showPlanFollowUpPrompt: false,
       promptHasText: true,
       isSendBusy: false,
@@ -82,6 +117,7 @@ function renderSendButton(sendDisabledReason: string | null = null) {
       hasSendableContent: true,
       onPreviousPendingQuestion: () => {},
       onInterrupt: () => {},
+      onSend: () => {},
       onImplementPlanInNewThread: () => {},
     }),
   );
