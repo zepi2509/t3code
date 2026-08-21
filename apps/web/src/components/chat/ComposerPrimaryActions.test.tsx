@@ -104,6 +104,8 @@ function renderRunningActions(showSendWhileRunning: boolean, hasSendableContent:
       compact: true,
       pendingAction: null,
       isRunning: true,
+      supportsSteer: false,
+      supportsFollowUp: false,
       showPlanFollowUpPrompt: false,
       promptHasText: hasSendableContent,
       isSendBusy: false,
@@ -115,6 +117,7 @@ function renderRunningActions(showSendWhileRunning: boolean, hasSendableContent:
       showSendWhileRunning,
       onPreviousPendingQuestion: () => {},
       onInterrupt: () => {},
+      onSend: () => {},
       onImplementPlanInNewThread: () => {},
     }),
   );
@@ -126,6 +129,8 @@ function renderSendButton() {
       compact: true,
       pendingAction: null,
       isRunning: false,
+      supportsSteer: false,
+      supportsFollowUp: false,
       showPlanFollowUpPrompt: false,
       promptHasText: true,
       isSendBusy: false,
@@ -136,6 +141,7 @@ function renderSendButton() {
       hasSendableContent: true,
       onPreviousPendingQuestion: () => {},
       onInterrupt: () => {},
+      onSend: () => {},
       onImplementPlanInNewThread: () => {},
     }),
   );
