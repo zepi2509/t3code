@@ -31,6 +31,7 @@ function renderPanel() {
       questionIndex={0}
       onToggleOption={() => {}}
       onAdvance={() => {}}
+      onCancel={() => {}}
     />,
   );
 }
