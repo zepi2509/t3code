@@ -83,6 +83,7 @@ const PI_FORK_TIMEOUT_MS = 15_000;
 const PI_MODEL_OPTIONS_TIMEOUT_MS = 5_000;
 const PI_PROMPT_TIMEOUT_MS = 30_000;
 const PI_APPROVAL_TITLE_PREFIX = "[t3-tool-approval] ";
+const PI_SUBAGENT_ASYNC_EDITOR_PREFIX = "PI_SUBAGENT_ASYNC_JSON:";
 
 // keep in sync with SENTINEL_COMMAND in t3-approvals.ts
 const PI_APPROVAL_SENTINEL_COMMAND = "t3-approval-gate";
@@ -872,19 +873,6 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             });
             return;
           }
-          if (entry["type"] === "custom") {
-            yield* offerRuntimeEvent({
-              ...base,
-              type: "runtime.warning",
-              payload: {
-                message:
-                  typeof entry["customType"] === "string"
-                    ? `Pi extension state: ${entry["customType"]}`
-                    : "Pi extension state updated",
-                detail: entry["data"],
-              },
-            });
-          }
           return;
         }
       }
@@ -895,6 +883,13 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     request: RpcExtensionUIRequest,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
+      if (
+        request.method === "set_editor_text" &&
+        request.text.startsWith(PI_SUBAGENT_ASYNC_EDITOR_PREFIX)
+      ) {
+        return;
+      }
+
       const stamp = yield* makeEventStamp();
       const turnId = context.turnState?.turnId;
 
