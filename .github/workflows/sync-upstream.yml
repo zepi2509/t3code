@@ -1,0 +1,76 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.sync.outputs.ref }}
+      build_release: ${{ steps.release.outputs.build_release }}
+      upstream_tag: ${{ steps.release.outputs.upstream_tag }}
+      upstream_url: ${{ steps.release.outputs.upstream_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: sync
+        name: Merge upstream main
+        run: |
+          base_ref="$(git rev-parse HEAD)"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git remote add upstream https://github.com/pingdotgg/t3code.git
+          git fetch upstream main
+          git merge --no-edit upstream/main
+          if ! git diff --quiet "$base_ref" -- .github/workflows; then
+            git restore --source="$base_ref" --staged --worktree .github/workflows
+            git commit -m "chore(ci): preserve fork workflows"
+          fi
+          sync_ref="$(git rev-parse HEAD)"
+          git push origin HEAD:main
+          echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
+
+      - id: release
+        name: Find latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api 'repos/pingdotgg/t3code/releases?per_page=10' > upstream-releases.json
+          gh api 'repos/${{ github.repository }}/releases?per_page=100' > fork-releases.json
+          upstream_tag="$(jq -r 'map(select(.draft | not))[0].tag_name // empty' upstream-releases.json)"
+          upstream_url="$(jq -r 'map(select(.draft | not))[0].html_url // empty' upstream-releases.json)"
+          mirrored="$(jq -r --arg tag "$upstream_tag" --arg url "$upstream_url" '
+            any(
+              .name == ("T3 Code fork build based on " + $tag)
+              or .body == ("Based on upstream release: " + $url)
+            )
+          ' fork-releases.json)"
+          if [[ -n "$upstream_tag" && "$mirrored" != true ]]; then
+            build_release=true
+          else
+            build_release=false
+          fi
+          echo "build_release=$build_release" >> "$GITHUB_OUTPUT"
+          echo "upstream_tag=$upstream_tag" >> "$GITHUB_OUTPUT"
+          echo "upstream_url=$upstream_url" >> "$GITHUB_OUTPUT"
+
+  desktop_release:
+    needs: sync
+    if: ${{ needs.sync.result == 'success' && needs.sync.outputs.build_release == 'true' }}
+    uses: ./.github/workflows/desktop-build.yml
+    with:
+      ref: ${{ needs.sync.outputs.ref }}
+      target: all
+      publish: true
+      upstream_tag: ${{ needs.sync.outputs.upstream_tag }}
+      upstream_url: ${{ needs.sync.outputs.upstream_url }}
