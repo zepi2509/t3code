@@ -16,6 +16,7 @@ interface PendingUserInputPanelProps {
   questionIndex: number;
   onToggleOption: (questionId: string, optionLabel: string) => void;
   onAdvance: () => void;
+  onCancel: (questionId: string) => void;
 }
 
 export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserInputPanel({
@@ -25,6 +26,7 @@ export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserIn
   questionIndex,
   onToggleOption,
   onAdvance,
+  onCancel,
 }: PendingUserInputPanelProps) {
   if (pendingUserInputs.length === 0) return null;
   const activePrompt = pendingUserInputs[0];
@@ -39,6 +41,7 @@ export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserIn
       questionIndex={questionIndex}
       onToggleOption={onToggleOption}
       onAdvance={onAdvance}
+      onCancel={onCancel}
     />
   );
 });
@@ -50,6 +53,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   questionIndex,
   onToggleOption,
   onAdvance,
+  onCancel,
 }: {
   prompt: PendingUserInput;
   isResponding: boolean;
@@ -57,6 +61,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   questionIndex: number;
   onToggleOption: (questionId: string, optionLabel: string) => void;
   onAdvance: () => void;
+  onCancel: (questionId: string) => void;
 }) {
   const progress = derivePendingUserInputProgress(prompt.questions, answers, questionIndex);
   const activeQuestion = progress.activeQuestion;
@@ -195,16 +200,11 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
               {questionIndex + 1}/{prompt.questions.length}
             </span>
           ) : null}
-          {/* Collapsed, the header is otherwise just a section label and a
-              counter, so the question itself is echoed here as a one-line
-              reminder of what is being asked. */}
           {isCollapsed ? (
             <span className="min-w-0 flex-1 truncate text-secondary-label text-xs">
               {activeQuestion.question}
             </span>
           ) : null}
-          {/* The chevron points at the body: down while it is open below the
-              header, up while it is collapsed into it. */}
           <ChevronDownIcon
             aria-hidden="true"
             className={cn(
@@ -213,6 +213,14 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
             )}
           />
         </CollapsibleTrigger>
+        <button
+          type="button"
+          className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+          disabled={isResponding}
+          onClick={() => onCancel(activeQuestion.id)}
+        >
+          Cancel
+        </button>
       </div>
       {/* The panel carries the horizontal padding itself: it clips its content
           while the height animates, so the option buttons have to sit inside
