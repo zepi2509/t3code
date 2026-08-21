@@ -216,6 +216,47 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
     }),
   );
 
+  it.effect("keeps internal extension state out of the work log and composer", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-extension-state");
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
+      );
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "search", attachments: [] });
+      yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "entry_appended",
+        entry: {
+          type: "custom",
+          customType: "web-search-results",
+          data: { urls: [] },
+        },
+      } as AgentSessionEvent);
+      yield* fake.pushExtensionUI({
+        type: "extension_ui_request",
+        id: "async-state",
+        method: "set_editor_text",
+        text: 'PI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
+      } as RpcExtensionUIRequest);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
+
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      expect(events.some((event) => event.type === "runtime.warning")).toBe(false);
+      expect(events.some((event) => event.type === "provider.ui")).toBe(false);
+    }),
+  );
+
   it.effect("maps thinking_delta to a reasoning_text content delta", () =>
     Effect.gen(function* () {
       const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
