@@ -600,7 +600,7 @@ export const make = Effect.gen(function* () {
             { concurrency: "unbounded" },
           );
           yield* electronUpdater.quitAndInstall({
-            isSilent: true,
+            isSilent: false,
             isForceRunAfter: true,
           });
           return { accepted: true, completed: false, failed: false };
