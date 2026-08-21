@@ -30,6 +30,7 @@ import {
 import { getDefaultBuildArch } from "./lib/build-target-arch.ts";
 import {
   findInlinedExternalPackages,
+  shouldBundleCliDependency,
   selectCliRuntimeExternalDependencies,
 } from "./lib/cli-external-packages.ts";
 import { loadRepoEnv } from "./lib/public-config.ts";
@@ -2327,6 +2328,17 @@ function validateBundledClientAssets(clientDir: string) {
   });
 }
 
+export function resolveStagedServerDependencies(
+  dependencies: Record<string, string>,
+  platform: typeof BuildPlatform.Type,
+): Record<string, string> {
+  return platform === "win"
+    ? Object.fromEntries(
+        Object.entries(dependencies).filter(([name]) => !shouldBundleCliDependency(name)),
+      )
+    : dependencies;
+}
+
 export function resolveDesktopRuntimeDependencies(
   dependencies: Record<string, string> | undefined,
   catalog: Record<string, string>,
@@ -3295,6 +3307,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     yield* runCommand(
       ChildProcess.make(spawnCommand.command, spawnCommand.args, {
         cwd: repoRoot,
+        env:
+          options.platform === "win"
+            ? { ...process.env, T3CODE_DESKTOP_SERVER_BUNDLE_DEPENDENCIES: "1" }
+            : process.env,
         shell: spawnCommand.shell,
       }),
       { label: "vp run build:desktop", verbose: options.verbose },
