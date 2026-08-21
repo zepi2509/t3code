@@ -39,6 +39,15 @@ Then run `t3` to start the server and open the local web app. `t3 service instal
 
 To try it once without installing, run `npx t3@latest` instead.
 
+### Nix
+
+```bash
+nix run github:zepi2509/t3code#server
+nix run github:zepi2509/t3code#desktop
+```
+
+The default package and app are the desktop client.
+
 ### Desktop app
 
 Install the latest version of the desktop app from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), or from your favorite package registry:
@@ -111,7 +120,7 @@ curl -fsSL https://vite.plus | bash
 irm https://vite.plus/ps1 | iex
 ```
 
-Checkout their getting started guide for more information: https://viteplus.dev/guide/
+Checkout their getting started guide for more information: <https://viteplus.dev/guide/>
 
 ### Install dependencies
 
