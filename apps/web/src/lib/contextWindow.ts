@@ -52,6 +52,12 @@ export function deriveLatestContextWindowSnapshot(
 ): ContextWindowSnapshot | null {
   for (let index = activities.length - 1; index >= 0; index -= 1) {
     const activity = activities[index];
+    if (
+      activity?.kind === "context-compaction" &&
+      asRecord(activity.payload)?.state === "compacted"
+    ) {
+      return null;
+    }
     if (!activity || activity.kind !== "context-window.updated") {
       continue;
     }
