@@ -50,6 +50,7 @@ interface BranchToolbarProps {
   environmentId: EnvironmentId;
   threadId: ThreadId;
   showGitControls: boolean;
+  providerUIStatuses: ReadonlyArray<{ key: string; text: string }>;
   draftId?: DraftId;
   onEnvModeChange: (mode: EnvMode) => void;
   effectiveEnvModeOverride?: EnvMode;
@@ -441,6 +442,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   environmentId,
   threadId,
   showGitControls,
+  providerUIStatuses,
   draftId,
   onEnvModeChange,
   effectiveEnvModeOverride,
@@ -601,6 +603,22 @@ export const BranchToolbar = memo(function BranchToolbar({
               onUsePreviousWorktree={onUsePreviousWorktree}
             />
           ) : null}
+        </div>
+      ) : null}
+
+      {providerUIStatuses.length > 0 ? (
+        <div className="flex min-w-0 items-center gap-1">
+          {showGitControls || showEnvironmentIndicator ? (
+            <Separator orientation="vertical" className="mx-0.5 h-3.5!" />
+          ) : null}
+          {providerUIStatuses.map((status) => (
+            <span
+              key={status.key}
+              className="min-w-0 truncate px-1 text-[11px] text-muted-foreground"
+            >
+              {status.text}
+            </span>
+          ))}
         </div>
       ) : null}
 
