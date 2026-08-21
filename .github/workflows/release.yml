@@ -330,6 +330,44 @@ jobs:
       - name: Test
         run: vp run --filter t3 test --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
+  # Validate the fork's Nix packages before publishing alongside the upstream
+  # platform-specific release archives.
+  nix_packages:
+    name: Verify Nix server and desktop packages
+    needs: [preflight]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      FLAKE_REF: github:${{ github.repository }}/${{ needs.preflight.outputs.ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Configure Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: zepi2509-t3code
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Check Nix flake
+        run: nix flake check --no-build --show-trace
+
+      - name: Build Nix server and desktop packages
+        run: nix build "$FLAKE_REF#server" "$FLAKE_REF#desktop" --no-link --show-trace
+
+      - name: Smoke test Nix server package
+        run: nix run "$FLAKE_REF#server" -- --version
+
   relay_public_config:
     name: Resolve T3 Connect public config
     # Consumes only the release commit, not preflight's resolved version, so it
@@ -695,13 +733,14 @@ jobs:
         quality,
         test,
         test_server,
+        nix_packages,
         desktop_mac_arm64,
         desktop_linux_x64,
         desktop_linux_arm64,
         desktop_win_x64,
         desktop_win_arm64,
       ]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.test_server.result == 'success' && needs.desktop_mac_arm64.result == 'success' && needs.desktop_linux_x64.result == 'success' && needs.desktop_linux_arm64.result == 'success' && needs.desktop_win_x64.result == 'success' && needs.desktop_win_arm64.result == 'success' }}
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.test_server.result == 'success' && needs.nix_packages.result == 'success' && needs.desktop_mac_arm64.result == 'success' && needs.desktop_linux_x64.result == 'success' && needs.desktop_linux_arm64.result == 'success' && needs.desktop_win_x64.result == 'success' && needs.desktop_win_arm64.result == 'success' }}
     runs-on: ubuntu-24.04 # blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
