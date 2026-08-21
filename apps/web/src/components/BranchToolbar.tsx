@@ -497,9 +497,7 @@ export const BranchToolbar = memo(function BranchToolbar({
                   envLocked={envLocked}
                   environmentId={environmentId}
                   availableEnvironments={availableEnvironments}
-                  {...(showEnvironmentPicker && onEnvironmentChange
-                    ? { onEnvironmentChange }
-                    : {})}
+                  {...(showEnvironmentPicker && onEnvironmentChange ? { onEnvironmentChange } : {})}
                 />
                 {showGitControls ? (
                   <Separator
@@ -528,7 +526,6 @@ export const BranchToolbar = memo(function BranchToolbar({
         {providerUIStatuses.map((status) => (
           <span
             key={status.key}
-            title={status.key}
             className="min-w-0 truncate px-1 text-[11px] text-muted-foreground"
           >
             {status.text}
