@@ -24,6 +24,7 @@ import {
   ProviderDriverKind,
   resolveEnvironmentMachineKind,
   RuntimeMode,
+  type TurnDeliveryMode,
   TerminalOpenInput,
 } from "@t3tools/contracts";
 import { type EnvironmentConnectionPresentation } from "@t3tools/client-runtime/connection";
@@ -102,8 +103,10 @@ import {
   deriveActivePlanState,
   findLatestProposedPlan,
   deriveWorkLogEntries,
+  deriveProviderUIState,
   hasActionableProposedPlan,
   isLatestTurnSettled,
+  isPiSubagentAsyncEditorText,
 } from "../session-logic";
 import { type LegendListRef } from "@legendapp/list/react";
 import {
@@ -2433,6 +2436,60 @@ function ChatViewContent(props: ChatViewProps) {
   const selectedProvider: ProviderDriverKind = lockedProvider ?? unlockedSelectedProvider;
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
+  const providerUIState = useMemo(
+    () => deriveProviderUIState(threadActivities),
+    [threadActivities],
+  );
+  const providerUISeenRef = useRef<{ threadKey: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const prompt = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt;
+    if (!prompt || !isPiSubagentAsyncEditorText(prompt)) return;
+    promptRef.current = "";
+    setComposerDraftPrompt(composerDraftTarget, "");
+    composerRef.current?.resetCursorState();
+  }, [composerDraftTarget, composerRef, routeThreadKey, setComposerDraftPrompt]);
+  useEffect(() => {
+    const seen = providerUISeenRef.current;
+    if (!seen || seen.threadKey !== routeThreadKey) {
+      providerUISeenRef.current = {
+        threadKey: routeThreadKey,
+        ids: new Set(providerUIState.transient.map((entry) => entry.id)),
+      };
+      return;
+    }
+    for (const entry of providerUIState.transient) {
+      if (seen.ids.has(entry.id)) continue;
+      seen.ids.add(entry.id);
+      if (entry.effect.method === "notify") {
+        toastManager.add({
+          type: entry.effect.notifyType,
+          title: entry.effect.message,
+        });
+      } else if (entry.effect.method === "set_editor_text") {
+        promptRef.current = entry.effect.text;
+        setComposerDraftPrompt(composerDraftTarget, entry.effect.text);
+        composerRef.current?.resetCursorState({
+          cursor: entry.effect.text.length,
+          prompt: entry.effect.text,
+          detectTrigger: true,
+        });
+      }
+    }
+  }, [composerDraftTarget, providerUIState.transient, routeThreadKey, setComposerDraftPrompt]);
+  useEffect(() => {
+    if (!providerUIState.title) return;
+    const previous = document.title;
+    document.title = providerUIState.title;
+    return () => {
+      if (document.title === providerUIState.title) document.title = previous;
+    };
+  }, [providerUIState.title]);
+  const providerWidgetsAbove = providerUIState.widgets.filter(
+    (widget) => widget.placement === "aboveEditor",
+  );
+  const providerWidgetsBelow = providerUIState.widgets.filter(
+    (widget) => widget.placement === "belowEditor",
+  );
   const latestCheckpointCompletedAt = activeThread?.checkpoints.at(-1)?.completedAt ?? null;
   const workspaceMutationId = useMemo(() => {
     const activityId = latestWorkspaceMutationId(threadActivities);
@@ -3012,18 +3069,22 @@ function ChatViewContent(props: ChatViewProps) {
   // Keep a hidden, off-flow strip mounted for existing threads so the composer
   // can measure whether its relocated controls fit. The visible chrome remains
   // content-driven: Git/environment context or controls that actually fit.
-  const mountComposerContextStrip = shouldShowComposerContextStrip({
-    hasActiveProject: activeProject !== null,
-    isGitRepo,
-    showEnvironmentIndicator: showComposerEnvironmentIndicator,
-    hostsRestingComposerControls: routeKind === "server",
-  });
-  const showComposerContextStrip = shouldShowComposerContextStrip({
-    hasActiveProject: activeProject !== null,
-    isGitRepo,
-    showEnvironmentIndicator: showComposerEnvironmentIndicator,
-    hostsRestingComposerControls: routeKind === "server" && restingComposerControlsVisible,
-  });
+  const mountComposerContextStrip =
+    providerUIState.statuses.length > 0 ||
+    shouldShowComposerContextStrip({
+      hasActiveProject: activeProject !== null,
+      isGitRepo,
+      showEnvironmentIndicator: showComposerEnvironmentIndicator,
+      hostsRestingComposerControls: routeKind === "server",
+    });
+  const showComposerContextStrip =
+    providerUIState.statuses.length > 0 ||
+    shouldShowComposerContextStrip({
+      hasActiveProject: activeProject !== null,
+      isGitRepo,
+      showEnvironmentIndicator: showComposerEnvironmentIndicator,
+      hostsRestingComposerControls: routeKind === "server" && restingComposerControlsVisible,
+    });
   const initialDiffPanelGitScope =
     gitStatusQuery.data?.hasWorkingTreeChanges === true ? "unstaged" : "branch";
   const diffPanelGitStatusResolutionKey = gitStatusQuery.data ? "resolved" : "pending";
@@ -5921,11 +5982,17 @@ function ChatViewContent(props: ChatViewProps) {
   const onSend = async (
     e?: { preventDefault: () => void },
     submissionIntent: ComposerSubmissionIntent = "foreground",
-    directAnnotation?: {
-      annotation: PreviewAnnotationPayload;
-      image: ComposerImageAttachment | null;
-    },
+    deliveryModeOrAnnotation?:
+      | TurnDeliveryMode
+      | {
+          annotation: PreviewAnnotationPayload;
+          image: ComposerImageAttachment | null;
+        },
   ) => {
+    const deliveryMode =
+      typeof deliveryModeOrAnnotation === "string" ? deliveryModeOrAnnotation : undefined;
+    const directAnnotation =
+      typeof deliveryModeOrAnnotation === "string" ? undefined : deliveryModeOrAnnotation;
     e?.preventDefault();
     const notifyDirectAnnotationAttached = () => {
       if (!directAnnotation) return;
@@ -6552,6 +6619,7 @@ function ChatViewContent(props: ChatViewProps) {
           titleSeed: title,
           runtimeMode,
           interactionMode,
+          ...(deliveryMode !== undefined ? { deliveryMode } : {}),
           ...(bootstrap ? { bootstrap } : {}),
           createdAt: messageCreatedAt,
         },
@@ -6563,6 +6631,9 @@ function ChatViewContent(props: ChatViewProps) {
         failure = startResult;
       } else {
         turnStartSucceeded = true;
+        if (deliveryMode === "steer") {
+          toastManager.add({ type: "success", title: "Steered the current turn" });
+        }
         if (turnUsesAttachmentUploads) {
           releaseDraftAttachments(composerAttachmentsSnapshot);
         }
@@ -6856,6 +6927,14 @@ function ChatViewContent(props: ChatViewProps) {
     onRespondToUserInput,
     setActivePendingUserInputQuestionIndex,
   ]);
+
+  const onCancelActivePendingUserInput = useCallback(
+    (questionId: string) => {
+      if (!activePendingUserInput) return;
+      void onRespondToUserInput(activePendingUserInput.requestId, { [questionId]: null });
+    },
+    [activePendingUserInput, onRespondToUserInput],
+  );
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {
     if (!activePendingProgress) {
@@ -7745,6 +7824,14 @@ function ChatViewContent(props: ChatViewProps) {
                     <ComposerSurface.Shell contextStrip={showComposerContextStrip}>
                       <ComposerSurface.Host>
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
+                          {providerWidgetsAbove.map((widget) => (
+                            <pre
+                              key={widget.key}
+                              className="mx-auto mb-1 whitespace-pre-wrap rounded-lg border border-border/60 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+                            >
+                              {widget.lines.join("\n")}
+                            </pre>
+                          ))}
                           <ChatComposer
                             composerRef={composerRef}
                             composerDraftTarget={composerDraftTarget}
@@ -7798,6 +7885,9 @@ function ChatViewContent(props: ChatViewProps) {
                             }
                             activeThreadModelSelection={activeThread?.modelSelection}
                             activeContextWindow={activeContextWindow}
+                            supportsManualCompaction={
+                              activeProviderStatus?.supportsManualCompaction === true
+                            }
                             compactDisabled={compactDisabled}
                             compactDisabledReason={compactDisabledReason}
                             resolvedTheme={resolvedTheme}
@@ -7807,7 +7897,9 @@ function ChatViewContent(props: ChatViewProps) {
                             gitCwd={gitCwd}
                             restingControlsHost={restingComposerControlsHost}
                             restingControlsHaveLeadingContext={
-                              isGitRepo || showComposerEnvironmentIndicator
+                              isGitRepo ||
+                              showComposerEnvironmentIndicator ||
+                              providerUIState.statuses.length > 0
                             }
                             onRestingControlsVisibilityChange={setRestingComposerControlsVisible}
                             getTimelineScrollableNode={getTimelineScrollableNode}
@@ -7829,6 +7921,7 @@ function ChatViewContent(props: ChatViewProps) {
                               onSelectActivePendingUserInputOption
                             }
                             onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
+                            onCancelActivePendingUserInput={onCancelActivePendingUserInput}
                             onPreviousActivePendingUserInputQuestion={
                               onPreviousActivePendingUserInputQuestion
                             }
@@ -7846,6 +7939,14 @@ function ChatViewContent(props: ChatViewProps) {
                             onExpandImage={onExpandTimelineImage}
                             onFileOpen={openFileAttachment}
                           />
+                          {providerWidgetsBelow.map((widget) => (
+                            <pre
+                              key={widget.key}
+                              className="mx-auto mt-1 whitespace-pre-wrap rounded-lg border border-border/60 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+                            >
+                              {widget.lines.join("\n")}
+                            </pre>
+                          ))}
                         </div>
                       </ComposerSurface.Host>
                       <div className="min-h-0">
@@ -7859,6 +7960,7 @@ function ChatViewContent(props: ChatViewProps) {
                                 environmentId={activeThread.environmentId}
                                 threadId={activeThread.id}
                                 showGitControls={isGitRepo}
+                                providerUIStatuses={providerUIState.statuses}
                                 {...(routeKind === "draft" && draftId ? { draftId } : {})}
                                 onEnvModeChange={onEnvModeChange}
                                 startFromOrigin={startFromOrigin}

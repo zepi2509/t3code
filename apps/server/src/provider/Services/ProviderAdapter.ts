@@ -35,6 +35,7 @@ export interface ProviderAdapterCapabilities {
   /** Starts a resumed turn with no synthetic user prompt. Omitted means the
       adapter needs an explicit continuation instruction. */
   readonly promptlessTurnContinuation?: boolean;
+  readonly manualCompaction?: boolean;
 }
 
 export interface ProviderThreadTurnSnapshot {
@@ -72,6 +73,8 @@ export interface ProviderAdapterShape<TError> {
    * Interrupt an active turn.
    */
   readonly interruptTurn: (threadId: ThreadId, turnId?: TurnId) => Effect.Effect<void, TError>;
+
+  readonly compactThread?: (threadId: ThreadId) => Effect.Effect<void, TError>;
 
   /**
    * Respond to an interactive approval request.
