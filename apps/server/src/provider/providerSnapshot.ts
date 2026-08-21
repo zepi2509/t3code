@@ -205,6 +205,7 @@ export function buildServerProvider(input: {
   models: ReadonlyArray<ServerProviderModel>;
   slashCommands?: ReadonlyArray<ServerProviderSlashCommand>;
   skills?: ReadonlyArray<ServerProviderSkill>;
+  supportsManualCompaction?: boolean;
   probe: ProviderProbeResult;
 }): ServerProviderDraft {
   const versionAdvisory = input.driver
@@ -229,6 +230,7 @@ export function buildServerProvider(input: {
     ...(typeof input.presentation.requiresNewThreadForModelChange === "boolean"
       ? { requiresNewThreadForModelChange: input.presentation.requiresNewThreadForModelChange }
       : {}),
+    ...(input.supportsManualCompaction ? { supportsManualCompaction: true } : {}),
     enabled: input.enabled,
     installed: input.probe.installed,
     version: input.probe.version,
