@@ -34,6 +34,7 @@ function renderPanel(pendingUserInput: PendingUserInput = prompt) {
       onToggleOption={() => {}}
       onAdvance={() => {}}
       onDismiss={() => {}}
+      onCancel={() => {}}
     />,
   );
 }
