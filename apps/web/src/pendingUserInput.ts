@@ -49,10 +49,8 @@ export function resolvePendingUserInputAnswer(
   question: UserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
-  const customAnswer = normalizeDraftAnswer(draft?.customAnswer);
-  if (customAnswer) {
-    return customAnswer;
-  }
+  const customAnswer = normalizeDraftAnswer(draft?.customAnswer ?? question.prefill);
+  if (customAnswer) return customAnswer;
 
   const selectedOptionLabels = normalizeSelectedOptionLabels(draft?.selectedOptionLabels);
   if (question.multiSelect) {
@@ -151,7 +149,7 @@ export function derivePendingUserInputProgress(
   const resolvedAnswer = activeQuestion
     ? resolvePendingUserInputAnswer(activeQuestion, activeDraft)
     : null;
-  const customAnswer = activeDraft?.customAnswer ?? "";
+  const customAnswer = activeDraft?.customAnswer ?? activeQuestion?.prefill ?? "";
   const answeredQuestionCount = countAnsweredPendingUserInputQuestions(questions, draftAnswers);
   const isLastQuestion =
     questions.length === 0 ? true : normalizedQuestionIndex >= questions.length - 1;

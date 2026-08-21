@@ -82,6 +82,9 @@ export const ServerProviderSlashCommand = Schema.Struct({
   name: TrimmedNonEmptyString,
   description: Schema.optional(TrimmedNonEmptyString),
   input: Schema.optional(ServerProviderSlashCommandInput),
+  source: Schema.optional(Schema.Literals(["extension", "prompt", "skill"])),
+  sourcePath: Schema.optional(TrimmedNonEmptyString),
+  sourceScope: Schema.optional(TrimmedNonEmptyString),
 });
 export type ServerProviderSlashCommand = typeof ServerProviderSlashCommand.Type;
 
@@ -171,6 +174,7 @@ export const ServerProvider = Schema.Struct({
   continuation: Schema.optional(ServerProviderContinuation),
   showInteractionModeToggle: Schema.optional(Schema.Boolean),
   requiresNewThreadForModelChange: Schema.optional(Schema.Boolean),
+  supportsManualCompaction: Schema.optional(Schema.Boolean),
   enabled: Schema.Boolean,
   installed: Schema.Boolean,
   version: Schema.NullOr(TrimmedNonEmptyString),
