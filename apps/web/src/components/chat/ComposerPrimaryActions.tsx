@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Spinner } from "../ui/spinner";
 import { composerFloatingLayerProps } from "./composerEventScope";
+import { useShortcutModifierState } from "../../shortcutModifierState";
 
 interface PendingActionState {
   questionIndex: number;
@@ -20,6 +21,8 @@ interface ComposerPrimaryActionsProps {
   compact: boolean;
   pendingAction: PendingActionState | null;
   isRunning: boolean;
+  supportsSteer: boolean;
+  supportsFollowUp: boolean;
   showPlanFollowUpPrompt: boolean;
   promptHasText: boolean;
   isSendBusy: boolean;
@@ -34,7 +37,21 @@ interface ComposerPrimaryActionsProps {
   showSendWhileRunning?: boolean;
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
+  onSend: (deliveryMode: "steer" | "follow-up") => void;
   onImplementPlanInNewThread: () => void;
+}
+
+export const MID_TURN_DELIVERY_ACTIONS = [
+  { mode: "steer", label: "Steer now" },
+  { mode: "follow-up", label: "Send after completion" },
+] as const;
+
+export function midTurnPrimaryDeliveryMode(input: {
+  ctrlKey: boolean;
+  metaKey: boolean;
+  supportsFollowUp: boolean;
+}): "steer" | "follow-up" {
+  return input.supportsFollowUp && (input.ctrlKey || input.metaKey) ? "follow-up" : "steer";
 }
 
 export const formatPendingPrimaryActionLabel = (input: {
@@ -63,6 +80,8 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   compact,
   pendingAction,
   isRunning,
+  supportsSteer,
+  supportsFollowUp,
   showPlanFollowUpPrompt,
   promptHasText,
   isSendBusy,
@@ -75,8 +94,10 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   showSendWhileRunning = false,
   onPreviousPendingQuestion,
   onInterrupt,
+  onSend,
   onImplementPlanInNewThread,
 }: ComposerPrimaryActionsProps) {
+  const shortcutModifiers = useShortcutModifierState();
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
     : undefined;
@@ -158,6 +179,59 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             questionIndex: pendingAction.questionIndex,
           })}
         </Button>
+      </div>
+    );
+  }
+
+  if (isRunning && (supportsSteer || !showSendWhileRunning)) {
+    const primaryDeliveryMode = midTurnPrimaryDeliveryMode({
+      ...shortcutModifiers,
+      supportsFollowUp,
+    });
+    return (
+      <div className="flex items-center gap-1.5">
+        {hasSendableContent && supportsSteer ? (
+          <div className="flex items-center">
+            <Button
+              type="button"
+              size="sm"
+              className={supportsFollowUp ? "rounded-l-full rounded-r-none" : "rounded-full"}
+              {...pointerFocusProps}
+              disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
+              onClick={() => onSend(primaryDeliveryMode)}
+            >
+              {primaryDeliveryMode === "follow-up" ? "Queue" : "Steer"}
+            </Button>
+            {supportsFollowUp ? (
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-l-none rounded-r-full border-l-white/12 px-2"
+                      {...pointerFocusProps}
+                      disabled={
+                        isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable
+                      }
+                      aria-label="Choose message delivery"
+                    />
+                  }
+                >
+                  <ChevronDownIcon className="size-3.5" />
+                </MenuTrigger>
+                <MenuPopup align="end" side="top" {...composerFloatingLayerProps}>
+                  {MID_TURN_DELIVERY_ACTIONS.map((action) => (
+                    <MenuItem key={action.mode} onClick={() => onSend(action.mode)}>
+                      {action.label}
+                    </MenuItem>
+                  ))}
+                </MenuPopup>
+              </Menu>
+            ) : null}
+          </div>
+        ) : null}
+        {renderStopGenerationButton(false)}
       </div>
     );
   }
