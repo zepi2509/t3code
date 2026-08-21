@@ -1134,6 +1134,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 
   .chat-composer-context-strip {
     position: relative;
+    min-height: calc(var(--chat-composer-context-extension) + 1rem);
     isolation: isolate;
 
     @variant dark {
