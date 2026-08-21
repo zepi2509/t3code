@@ -530,6 +530,23 @@ describe("DesktopUpdates", () => {
     }),
   );
 
+  it.effect("invokes the native installer while applying a downloaded update", () => {
+    const harness = makeHarness();
+
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const updates = yield* DesktopUpdates.DesktopUpdates;
+        yield* updates.configure;
+        harness.emit("update-downloaded", { version: "1.2.4" });
+        yield* flushCallbacks;
+
+        const result = yield* updates.install;
+        assert.isTrue(result.accepted);
+        assert.equal(harness.quitAndInstalls(), 1);
+      }),
+    ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+  });
+
   it.effect("clears quitting state after an unexpected install setup failure", () => {
     const harness = makeHarness({
       stopBackend: Effect.die(new Error("backend stop failed")),
