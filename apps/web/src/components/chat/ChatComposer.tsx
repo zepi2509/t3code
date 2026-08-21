@@ -3638,7 +3638,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               </div>
             )}
           </div>
-
         </div>
       </div>
     </form>
