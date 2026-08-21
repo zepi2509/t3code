@@ -46,6 +46,7 @@ interface BranchToolbarProps {
   environmentId: EnvironmentId;
   threadId: ThreadId;
   showGitControls: boolean;
+  providerUIStatuses: ReadonlyArray<{ key: string; text: string }>;
   draftId?: DraftId;
   onEnvModeChange: (mode: EnvMode) => void;
   effectiveEnvModeOverride?: EnvMode;
@@ -378,6 +379,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   environmentId,
   threadId,
   showGitControls,
+  providerUIStatuses,
   draftId,
   onEnvModeChange,
   effectiveEnvModeOverride,
@@ -471,52 +473,68 @@ export const BranchToolbar = memo(function BranchToolbar({
       ref={setStripElement}
       data-compact={labelsOverflow ? "" : undefined}
     >
-      {isMobile && showGitControls ? (
-        <MobileRunContextSelector
-          envLocked={envLocked}
-          envModeLocked={envModeLocked}
-          environmentId={environmentId}
-          availableEnvironments={availableEnvironments}
-          showEnvironmentPicker={showEnvironmentPicker}
-          showEnvironmentIndicator={showEnvironmentIndicator}
-          onEnvironmentChange={onEnvironmentChange}
-          effectiveEnvMode={effectiveEnvMode}
-          activeWorktreePath={activeWorktreePath}
-          onEnvModeChange={onEnvModeChange}
-          previousWorktreeLabel={previousWorktreeLabel}
-          onUsePreviousWorktree={onUsePreviousWorktree}
-        />
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-1">
-          {showEnvironmentIndicator && availableEnvironments && (
-            <>
-              <BranchToolbarEnvironmentSelector
-                envLocked={envLocked}
-                environmentId={environmentId}
-                availableEnvironments={availableEnvironments}
-                {...(showEnvironmentPicker && onEnvironmentChange ? { onEnvironmentChange } : {})}
-              />
-              {showGitControls ? (
-                <Separator
-                  orientation="vertical"
-                  className="mx-0.5 h-3.5!"
-                  data-composer-context-control
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        {isMobile && showGitControls ? (
+          <MobileRunContextSelector
+            envLocked={envLocked}
+            envModeLocked={envModeLocked}
+            environmentId={environmentId}
+            availableEnvironments={availableEnvironments}
+            showEnvironmentPicker={showEnvironmentPicker}
+            showEnvironmentIndicator={showEnvironmentIndicator}
+            onEnvironmentChange={onEnvironmentChange}
+            effectiveEnvMode={effectiveEnvMode}
+            activeWorktreePath={activeWorktreePath}
+            onEnvModeChange={onEnvModeChange}
+            previousWorktreeLabel={previousWorktreeLabel}
+            onUsePreviousWorktree={onUsePreviousWorktree}
+          />
+        ) : (
+          <>
+            {showEnvironmentIndicator && availableEnvironments && (
+              <>
+                <BranchToolbarEnvironmentSelector
+                  envLocked={envLocked}
+                  environmentId={environmentId}
+                  availableEnvironments={availableEnvironments}
+                  {...(showEnvironmentPicker && onEnvironmentChange
+                    ? { onEnvironmentChange }
+                    : {})}
                 />
-              ) : null}
-            </>
-          )}
-          {showGitControls ? (
-            <BranchToolbarEnvModeSelector
-              envLocked={envModeLocked}
-              effectiveEnvMode={effectiveEnvMode}
-              activeWorktreePath={activeWorktreePath}
-              onEnvModeChange={onEnvModeChange}
-              previousWorktreeLabel={previousWorktreeLabel}
-              onUsePreviousWorktree={onUsePreviousWorktree}
-            />
-          ) : null}
-        </div>
-      )}
+                {showGitControls ? (
+                  <Separator
+                    orientation="vertical"
+                    className="mx-0.5 h-3.5!"
+                    data-composer-context-control
+                  />
+                ) : null}
+              </>
+            )}
+            {showGitControls ? (
+              <BranchToolbarEnvModeSelector
+                envLocked={envModeLocked}
+                effectiveEnvMode={effectiveEnvMode}
+                activeWorktreePath={activeWorktreePath}
+                onEnvModeChange={onEnvModeChange}
+                previousWorktreeLabel={previousWorktreeLabel}
+                onUsePreviousWorktree={onUsePreviousWorktree}
+              />
+            ) : null}
+          </>
+        )}
+        {providerUIStatuses.length > 0 && (showGitControls || showEnvironmentIndicator) ? (
+          <Separator orientation="vertical" className="mx-0.5 h-3.5!" />
+        ) : null}
+        {providerUIStatuses.map((status) => (
+          <span
+            key={status.key}
+            title={status.key}
+            className="min-w-0 truncate px-1 text-[11px] text-muted-foreground"
+          >
+            {status.text}
+          </span>
+        ))}
+      </div>
 
       {showGitControls ? (
         <BranchToolbarBranchSelector

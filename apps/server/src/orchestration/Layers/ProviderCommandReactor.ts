@@ -61,7 +61,8 @@ type ProviderIntentEvent = Extract<
       | "thread.turn-interrupt-requested"
       | "thread.approval-response-requested"
       | "thread.user-input-response-requested"
-      | "thread.session-stop-requested";
+      | "thread.session-stop-requested"
+      | "thread.compact-requested";
   }
 >;
 
@@ -778,6 +779,7 @@ const make = Effect.gen(function* () {
     readonly attachments?: ReadonlyArray<ChatAttachment>;
     readonly modelSelection?: ModelSelection;
     readonly interactionMode?: "default" | "plan";
+    readonly deliveryMode?: "steer" | "follow-up";
     readonly createdAt: string;
   }) {
     const thread = yield* resolveThread(input.threadId);
@@ -829,6 +831,7 @@ const make = Effect.gen(function* () {
       ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
       ...(modelForTurn !== undefined ? { modelSelection: modelForTurn } : {}),
       ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
+      ...(input.deliveryMode !== undefined ? { deliveryMode: input.deliveryMode } : {}),
     };
   });
 
@@ -1218,6 +1221,9 @@ const make = Effect.gen(function* () {
         ? { modelSelection: event.payload.modelSelection }
         : {}),
       interactionMode: event.payload.interactionMode,
+      ...(event.payload.deliveryMode !== undefined
+        ? { deliveryMode: event.payload.deliveryMode }
+        : {}),
       createdAt: event.payload.createdAt,
     }).pipe(
       Effect.map(Option.some),
@@ -1447,6 +1453,40 @@ const make = Effect.gen(function* () {
     });
   });
 
+  const processCompactRequested = Effect.fn("processCompactRequested")(function* (
+    event: Extract<ProviderIntentEvent, { type: "thread.compact-requested" }>,
+  ) {
+    const appendActivity = (tone: "info" | "error", summary: string, detail?: string) =>
+      Effect.all({
+        commandId: serverCommandId("context-compaction"),
+        eventId: serverEventId(),
+      }).pipe(
+        Effect.flatMap(({ commandId, eventId }) =>
+          orchestrationEngine.dispatch({
+            type: "thread.activity.append",
+            commandId,
+            threadId: event.payload.threadId,
+            activity: {
+              id: eventId,
+              tone,
+              kind: "context-compaction",
+              summary,
+              payload: detail ? { detail } : { state: "running" },
+              turnId: null,
+              createdAt: event.payload.createdAt,
+            },
+            createdAt: event.payload.createdAt,
+          }),
+        ),
+      );
+    yield* appendActivity("info", "Compacting context");
+    yield* providerService.compactThread!({ threadId: event.payload.threadId }).pipe(
+      Effect.catchCause((cause) =>
+        appendActivity("error", "Context compaction failed", Cause.pretty(cause)),
+      ),
+    );
+  });
+
   const processDomainEvent = Effect.fn("processDomainEvent")(function* (
     event: ProviderIntentEvent,
   ) {
@@ -1490,6 +1530,9 @@ const make = Effect.gen(function* () {
       case "thread.session-stop-requested":
         yield* processSessionStopRequested(event);
         return;
+      case "thread.compact-requested":
+        yield* processCompactRequested(event);
+        return;
     }
   });
 
@@ -1528,7 +1571,8 @@ const make = Effect.gen(function* () {
         event.type === "thread.turn-interrupt-requested" ||
         event.type === "thread.approval-response-requested" ||
         event.type === "thread.user-input-response-requested" ||
-        event.type === "thread.session-stop-requested"
+        event.type === "thread.session-stop-requested" ||
+        event.type === "thread.compact-requested"
       ) {
         return yield* worker.enqueue(event);
       }
