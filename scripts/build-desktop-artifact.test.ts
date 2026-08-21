@@ -36,6 +36,7 @@ import {
   resolveDesktopRuntimeDependencies,
   resolveMacStageDependencies,
   resolveFffNativeDependencies,
+  resolveStagedServerDependencies,
   resolveBuildOptions,
   resolveDesktopBuildIconAssets,
   resolveDesktopProductName,
@@ -284,6 +285,21 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         effect: "4.0.0-beta.59",
       },
     );
+  });
+
+  it("omits server dependencies already bundled into Windows artifacts", () => {
+    const dependencies = {
+      "@anthropic-ai/claude-agent-sdk": "0.3.170",
+      "@ff-labs/fff-node": "0.9.4",
+      effect: "4.0.0-beta.78",
+      "node-pty": "1.1.0",
+    };
+
+    assert.deepStrictEqual(resolveStagedServerDependencies(dependencies, "win"), {
+      "@ff-labs/fff-node": "0.9.4",
+      "node-pty": "1.1.0",
+    });
+    assert.strictEqual(resolveStagedServerDependencies(dependencies, "linux"), dependencies);
   });
 
   it("carries only staged dependency patch metadata into staged desktop installs", () => {
@@ -1231,9 +1247,13 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       );
 
       const win = config.win as Record<string, unknown>;
+      const asarUnpack = config.asarUnpack as ReadonlyArray<string>;
       assert.equal(win.icon, "icon.ico");
       assert.equal(win.signAndEditExecutable, true);
       assert.notProperty(win, "azureSignOptions");
+      assert.include(asarUnpack, "apps/server/dist/**/*");
+      assert.include(asarUnpack, "node_modules/node-pty/**/*");
+      assert.notInclude(asarUnpack, "**/node_modules/**");
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );
 
