@@ -6,8 +6,8 @@ on:
       - "v*.*.*"
       - "!v*-nightly.*"
   schedule:
-    # Avoid minute zero, when GitHub scheduled jobs are busiest.
-    - cron: "8,38 * * * *"
+    # Off minute zero: GitHub delays scheduled runs most at the top of the hour.
+    - cron: "38 */3 * * *"
   workflow_dispatch:
     inputs:
       channel:
@@ -19,7 +19,7 @@ on:
           - stable
           - nightly
       version:
-        description: "Stable version override (for example 1.2.3). Defaults to the version the latest nightly previewed."
+        description: "Release version (for example 1.2.3 or v1.2.3)"
         required: false
         type: string
 
@@ -28,7 +28,7 @@ on:
 # own group so a nightly never blocks them. Running publishers are never
 # canceled, and queue: max keeps every pending run instead of the default
 # newest-wins single slot, so a queued stable tag can never be silently
-# dropped. Automatic nightlies recheck the release gap after leaving the queue.
+# dropped. Queued nightlies with no new commits skip via check_changes.
 concurrency:
   group: release-${{ (github.event_name == 'schedule' || inputs.channel == 'nightly') && 'nightly' || 'stable' }}
   cancel-in-progress: false
@@ -39,56 +39,53 @@ permissions:
   id-token: none
 
 jobs:
-  # Picks the commit every later job builds. Nightlies and tag pushes build the
-  # triggering commit. Manual stable releases build the commit of the latest
-  # published nightly, so stable only ever ships a build that nightly users
-  # have already run. Scheduled runs also decide here whether a nightly is due.
-  resolve_commit:
-    name: Resolve release commit
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 5
+  check_changes:
+    name: Check for changes since last nightly
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
     outputs:
-      ref: ${{ steps.resolve.outputs.ref }}
-      nightly_version: ${{ steps.resolve.outputs.nightly_version }}
-      has_changes: ${{ steps.resolve.outputs.has_changes }}
+      has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .github/scripts
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
 
-      - id: resolve
-        name: Resolve release commit
-        uses: actions/github-script@v8
-        env:
-          DISPATCH_CHANNEL: ${{ inputs.channel }}
-        with:
-          script: |
-            const {
-              shouldReleaseNightly,
-              resolveLatestNightlyCommit,
-            } = require('./.github/scripts/check-nightly-release.cjs');
+      - id: check
+        name: Compare HEAD to last nightly tag
+        run: |
+          last_nightly_tag=$(git tag --list 'v*-nightly.*' 'nightly-v*' --sort=-creatordate | head -n 1)
+          if [[ -z "$last_nightly_tag" ]]; then
+            echo "No previous nightly tag found. Proceeding with release."
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-            if (context.eventName === 'schedule') {
-              core.setOutput('has_changes', await shouldReleaseNightly({ github, context, core }));
-              core.setOutput('ref', context.sha);
-            } else if (context.eventName === 'workflow_dispatch' && process.env.DISPATCH_CHANNEL !== 'nightly') {
-              const { tag, sha, version } = await resolveLatestNightlyCommit({ github, context, core });
-              core.notice(`Stable release builds ${sha}, the commit shipped by ${tag}.`);
-              core.setOutput('ref', sha);
-              core.setOutput('nightly_version', version);
-            } else {
-              core.setOutput('ref', context.sha);
-            }
+          last_nightly_sha=$(git rev-parse "$last_nightly_tag^{commit}")
+          head_sha=$(git rev-parse HEAD)
+
+          if [[ "$last_nightly_sha" == "$head_sha" ]]; then
+            echo "No changes on main since last nightly release ($last_nightly_tag). Skipping."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes detected on main since $last_nightly_tag ($last_nightly_sha → $head_sha). Proceeding."
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
 
   preflight:
     name: Preflight
-    needs: [resolve_commit]
+    needs: [check_changes]
     if: |
-      needs.resolve_commit.result == 'success' &&
-      (github.event_name != 'schedule' || needs.resolve_commit.outputs.has_changes == 'true')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 10
+      !failure() && !cancelled() &&
+      (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      FLAKE_REF: github:${{ github.repository }}/${{ github.sha }}
     outputs:
       release_channel: ${{ steps.release_meta.outputs.release_channel }}
       version: ${{ steps.release_meta.outputs.version }}
@@ -99,12 +96,11 @@ jobs:
       cli_dist_tag: ${{ steps.release_meta.outputs.cli_dist_tag }}
       is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
       make_latest: ${{ steps.release_meta.outputs.make_latest }}
-      ref: ${{ needs.resolve_commit.outputs.ref }}
+      ref: ${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.resolve_commit.outputs.ref }}
           fetch-depth: 0
           sparse-checkout: |
             /*
@@ -126,9 +122,8 @@ jobs:
         env:
           DISPATCH_CHANNEL: ${{ github.event.inputs.channel }}
           DISPATCH_VERSION: ${{ github.event.inputs.version }}
-          NIGHTLY_VERSION: ${{ needs.resolve_commit.outputs.nightly_version }}
           NIGHTLY_DATE: ${{ github.run_started_at }}
-          NIGHTLY_SHA: ${{ needs.resolve_commit.outputs.ref }}
+          NIGHTLY_SHA: ${{ github.sha }}
           NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" || ( "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${DISPATCH_CHANNEL:-stable}" == "nightly" ) ]]; then
@@ -146,9 +141,9 @@ jobs:
             echo "make_latest=false" >> "$GITHUB_OUTPUT"
           else
             if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-              raw="${DISPATCH_VERSION:-$NIGHTLY_VERSION}"
+              raw="${DISPATCH_VERSION}"
               if [[ -z "$raw" ]]; then
-                echo "workflow_dispatch stable releases need a version input or a published nightly." >&2
+                echo "workflow_dispatch stable releases require the version input." >&2
                 exit 1
               fi
             else
@@ -223,23 +218,40 @@ jobs:
       - name: Typecheck
         run: vp run typecheck
 
-      - uses: ./.github/actions/setup-apt-mirrors
-
-      - name: Install browser secret helper build libraries
-        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
-
       - name: Test
         run: vp run test
 
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Configure Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: zepi2509-t3code
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Check Nix flake
+        run: nix flake check --no-build --show-trace
+
+      - name: Build Nix server and desktop packages
+        run: nix build "$FLAKE_REF#server" "$FLAKE_REF#desktop" --no-link --show-trace
+
+      - name: Smoke test Nix server package
+        run: nix run "$FLAKE_REF#server" -- --version
+
+      - id: previous_tag
+        name: Resolve previous release tag
+        run: |
+          node scripts/resolve-previous-release-tag.ts \
+            --channel "${{ steps.release_meta.outputs.release_channel }}" \
+            --current-tag "${{ steps.release_meta.outputs.tag }}" \
+            --github-output
+
   relay_public_config:
     name: Resolve T3 Connect public config
-    # Consumes only the release commit, not preflight's resolved version, so it
-    # runs alongside preflight instead of after it. The condition mirrors preflight's.
-    needs: [resolve_commit]
-    if: |
-      needs.resolve_commit.result == 'success' &&
-      (github.event_name != 'schedule' || needs.resolve_commit.outputs.has_changes == 'true')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    needs: preflight
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment:
       name: production
@@ -260,7 +272,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.resolve_commit.outputs.ref }}
+          ref: ${{ github.sha }}
           sparse-checkout: |
             /*
             !/.repos/
@@ -333,19 +345,15 @@ jobs:
   # machine. node-pty is N-API, so one binary works across all WSL Node versions.
   build_wsl_node_pty:
     name: Build WSL node-pty (linux-x64)
-    # Same gating as relay_public_config: only the release commit is needed, so
-    # this runs alongside preflight. See the condition comment there.
-    needs: [resolve_commit]
-    if: |
-      needs.resolve_commit.result == 'success' &&
-      (github.event_name != 'schedule' || needs.resolve_commit.outputs.has_changes == 'true')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    needs: [preflight]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ needs.resolve_commit.outputs.ref }}
+          ref: ${{ github.sha }}
           sparse-checkout: |
             /*
             !/.repos/
@@ -404,28 +412,28 @@ jobs:
       matrix:
         include:
           - label: macOS arm64
-            runner: blacksmith-12vcpu-macos-26
+            runner: macos-26
             platform: mac
             target: dmg
             arch: arm64
             rust_target: aarch64-apple-darwin
             resource_key: darwin-arm64
           - label: macOS x64
-            runner: blacksmith-12vcpu-macos-26
+            runner: macos-26
             platform: mac
             target: dmg
             arch: x64
             rust_target: x86_64-apple-darwin
             resource_key: darwin-x64
           - label: Linux x64
-            runner: blacksmith-32vcpu-ubuntu-2404
+            runner: ubuntu-24.04
             platform: linux
             target: AppImage
             arch: x64
             rust_target: x86_64-unknown-linux-gnu
             resource_key: linux-x64
           - label: Windows x64
-            runner: blacksmith-32vcpu-windows-2025
+            runner: windows-2025
             platform: win
             target: nsis
             arch: x64
@@ -487,18 +495,8 @@ jobs:
           path: native/resource-monitor/target/${{ matrix.rust_target }}/release/t3-resource-monitor${{ matrix.platform == 'win' && '.exe' || '' }}
           key: resource-monitor-${{ matrix.rust_target }}-${{ hashFiles('native/resource-monitor/Cargo.lock', 'native/resource-monitor/Cargo.toml', 'native/resource-monitor/src/**') }}
 
-      - name: Cache Linux capture helpers
-        if: matrix.platform == 'linux'
-        id: capture_helper_cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            native/kde-snap-shot/target/${{ matrix.rust_target }}/release/t3-kde-snap-shot
-            native/hyprland-snap-shot/target/${{ matrix.rust_target }}/release/t3-hyprland-snap-shot
-          key: linux-capture-helpers-${{ matrix.rust_target }}-${{ hashFiles('native/kde-snap-shot/Cargo.lock', 'native/kde-snap-shot/Cargo.toml', 'native/kde-snap-shot/src/**', 'native/hyprland-snap-shot/Cargo.lock', 'native/hyprland-snap-shot/Cargo.toml', 'native/hyprland-snap-shot/src/**', 'native/hyprland-snap-shot/protocols/**') }}
-
       - name: Setup Rust
-        if: steps.resource_monitor_cache.outputs.cache-hit != 'true' || (matrix.platform == 'linux' && steps.capture_helper_cache.outputs.cache-hit != 'true')
+        if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust_target }}
@@ -536,7 +534,7 @@ jobs:
           $setupExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
           $proc = Start-Process -FilePath $setupExe `
             -ArgumentList "modify", "--installPath", "`"$installPath`"", "--add", `
-            "Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre", "--quiet", "--norestart" `
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64.Spectre", "--quiet", "--norestart" `
             -Wait -PassThru -NoNewWindow
           if ($null -eq $proc -or $proc.ExitCode -ne 0) {
             $code = if ($null -ne $proc) { $proc.ExitCode } else { 1 }
@@ -544,16 +542,12 @@ jobs:
             exit $code
           }
 
-      - uses: ./.github/actions/setup-apt-mirrors
-        if: matrix.platform == 'linux'
-
-      - name: Install Linux desktop build libraries
+      - name: Install ImageMagick
         if: matrix.platform == 'linux'
         shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libsecret-1-dev pkg-config
           if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
+              sudo apt-get update
               sudo apt-get install -y imagemagick
           fi
 
@@ -630,7 +624,6 @@ jobs:
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
           T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR: ${{ steps.resource_monitor_cache.outputs.cache-hit == 'true' }}
-          T3CODE_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
@@ -777,9 +770,9 @@ jobs:
 
   publish_cli:
     name: Publish CLI to npm
-    needs: [preflight, relay_public_config, quality, build]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.quality.result == 'success' && needs.build.result == 'success' }}
-    runs-on: ubuntu-24.04 # blacksmith-8vcpu-ubuntu-2404
+    needs: [preflight, relay_public_config, build]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build.result == 'success' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -857,7 +850,7 @@ jobs:
     name: Publish GitHub Release
     needs: [preflight, build, publish_cli]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.build.result == 'success' && needs.publish_cli.result == 'success' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -953,12 +946,11 @@ jobs:
     name: Deploy hosted web app
     needs: [preflight, relay_public_config, release]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.release.result == 'success' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
       T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
-      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
       T3CODE_RELAY_URL: ${{ needs.relay_public_config.outputs.relay_url }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -1047,7 +1039,6 @@ jobs:
               --build-env "APP_VERSION=${{ needs.preflight.outputs.version }}" \
               --build-env "T3CODE_CLERK_PUBLISHABLE_KEY=${T3CODE_CLERK_PUBLISHABLE_KEY:-}" \
               --build-env "T3CODE_CLERK_JWT_TEMPLATE=${T3CODE_CLERK_JWT_TEMPLATE:-}" \
-              --build-env "T3CODE_CLERK_CLI_OAUTH_CLIENT_ID=${T3CODE_CLERK_CLI_OAUTH_CLIENT_ID:-}" \
               --build-env "T3CODE_RELAY_URL=${T3CODE_RELAY_URL:-}" \
               --build-env "T3CODE_RELAY_CLIENT_OTLP_TRACES_URL=${T3CODE_RELAY_CLIENT_OTLP_TRACES_URL:-}" \
               --build-env "T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET=${T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET:-}" \
@@ -1068,65 +1059,11 @@ jobs:
               "${vercel_scope_args[@]}"
           fi
 
-  deploy_marketing:
-    name: Deploy marketing site
-    needs: [preflight, release]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'nightly' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 10
-    env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=@t3tools/marketing...
-
-      - name: Deploy marketing site to Vercel
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" ]]; then
-            echo "Missing one or more required Vercel secrets: VERCEL_TOKEN, VERCEL_ORG_ID." >&2
-            exit 1
-          fi
-
-          VERCEL_PROJECT_ID="$(
-            curl --fail --silent --show-error \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v9/projects/t3code-marketing?teamId=$VERCEL_ORG_ID" \
-              | jq --exit-status --raw-output '.id'
-          )"
-          export VERCEL_PROJECT_ID
-
-          vp dlx vercel@53.1.1 deploy \
-            --archive=tgz \
-            --prod \
-            --yes \
-            --token "$VERCEL_TOKEN" \
-            --scope "${VERCEL_TEAM_SLUG:-$VERCEL_ORG_ID}"
-
   finalize:
     name: Finalize release
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'stable' }}
     needs: [preflight, release]
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - id: app_token
@@ -1211,7 +1148,7 @@ jobs:
       needs.deploy_web.result == 'success' &&
       (needs.finalize.result == 'success' || needs.finalize.result == 'skipped')
     needs: [preflight, relay_public_config, release, deploy_web, finalize]
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
