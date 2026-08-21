@@ -11,6 +11,10 @@ import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { usageLimitsBannerItem } from "./chat/ComposerUsageLimits";
 import { derivePendingRequests } from "@t3tools/client-runtime/pending-requests";
 import {
+  isCompactCommandMessage,
+  isContextCompacting,
+} from "@t3tools/client-runtime/state/compaction";
+import {
   questionAttachmentDraftId,
   questionAttachmentDraftPrefix,
   clearQuestionAttachmentDraft,
@@ -43,6 +47,7 @@ import {
   ProviderDriverKind,
   resolveEnvironmentMachineKind,
   RuntimeMode,
+  type TurnDeliveryMode,
   TerminalOpenInput,
   type WorktreeSetupSnapshot,
 } from "@t3tools/contracts";
@@ -134,11 +139,13 @@ import {
   deriveActivePlanState,
   findLatestProposedPlan,
   deriveWorkLogEntries,
+  deriveProviderUIState,
   hasActionableProposedPlan,
   isLatestTurnSettled,
   selectHandoffImageResources,
   type TimelineEntriesProjection,
 } from "../session-logic";
+import { isPiSubagentAsyncEditorText } from "../piEditorText";
 import { type LegendListRef } from "@legendapp/list/react";
 import {
   CHAT_TIMELINE_ANCHOR_OFFSET,
@@ -736,11 +743,6 @@ function formatOutgoingPrompt(params: {
 }
 const SCRIPT_TERMINAL_COLS = 120;
 const SCRIPT_TERMINAL_ROWS = 30;
-
-function isCompactCommandMessage(message: ChatMessage): boolean {
-  const text = message.text.trim().toLowerCase();
-  return message.role === "user" && text === "/compact" && !message.attachments?.length;
-}
 
 type ChatViewProps =
   | {
@@ -2887,6 +2889,60 @@ export default function ChatView(props: ChatViewProps) {
     conversationProviderStatus.supportsConversationRollback !== false;
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
+  const providerUIState = useMemo(
+    () => deriveProviderUIState(threadActivities),
+    [threadActivities],
+  );
+  const providerUISeenRef = useRef<{ threadKey: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const prompt = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt;
+    if (!prompt || !isPiSubagentAsyncEditorText(prompt)) return;
+    promptRef.current = "";
+    setComposerDraftPrompt(composerDraftTarget, "");
+    composerRef.current?.resetCursorState();
+  }, [composerDraftTarget, composerRef, routeThreadKey, setComposerDraftPrompt]);
+  useEffect(() => {
+    const seen = providerUISeenRef.current;
+    if (!seen || seen.threadKey !== routeThreadKey) {
+      providerUISeenRef.current = {
+        threadKey: routeThreadKey,
+        ids: new Set(providerUIState.transient.map((entry) => entry.id)),
+      };
+      return;
+    }
+    for (const entry of providerUIState.transient) {
+      if (seen.ids.has(entry.id)) continue;
+      seen.ids.add(entry.id);
+      if (entry.effect.method === "notify") {
+        toastManager.add({
+          type: entry.effect.notifyType,
+          title: entry.effect.message,
+        });
+      } else if (entry.effect.method === "set_editor_text") {
+        promptRef.current = entry.effect.text;
+        setComposerDraftPrompt(composerDraftTarget, entry.effect.text);
+        composerRef.current?.resetCursorState({
+          cursor: entry.effect.text.length,
+          prompt: entry.effect.text,
+          detectTrigger: true,
+        });
+      }
+    }
+  }, [composerDraftTarget, providerUIState.transient, routeThreadKey, setComposerDraftPrompt]);
+  useEffect(() => {
+    if (!providerUIState.title) return;
+    const previous = document.title;
+    document.title = providerUIState.title;
+    return () => {
+      if (document.title === providerUIState.title) document.title = previous;
+    };
+  }, [providerUIState.title]);
+  const providerWidgetsAbove = providerUIState.widgets.filter(
+    (widget) => widget.placement === "aboveEditor",
+  );
+  const providerWidgetsBelow = providerUIState.widgets.filter(
+    (widget) => widget.placement === "belowEditor",
+  );
   const latestCheckpointCompletedAt = activeThread?.checkpoints.at(-1)?.completedAt ?? null;
   const workspaceMutationId = useMemo(() => {
     const activityId = latestWorkspaceMutationId(threadActivities);
@@ -3194,31 +3250,13 @@ export default function ChatView(props: ChatViewProps) {
     activePendingUserInput: activePendingUserInput?.requestId ?? null,
     threadError,
   });
-  const optimisticCompactionMessage = optimisticUserMessages.at(-1);
-  const pendingCompactionMessage =
-    isSendBusy &&
-    optimisticCompactionMessage !== undefined &&
-    isCompactCommandMessage(optimisticCompactionMessage)
-      ? optimisticCompactionMessage
-      : activeThread?.messages.findLast(isCompactCommandMessage);
-  const compactRequestIsActive =
-    pendingCompactionMessage !== undefined &&
-    (pendingCompactionMessage.createdAt >
-      (activeLatestTurn?.requestedAt ?? pendingCompactionMessage.createdAt) ||
-      (activeLatestTurn?.state === "running" &&
-        pendingCompactionMessage.createdAt === activeLatestTurn.requestedAt));
-  const compactionSettled =
-    pendingCompactionMessage !== undefined &&
-    (latestTurnStartFailureId(activeThread, pendingCompactionMessage.id) !== null ||
-      activeThread?.activities.some((activity) => {
-        if (activity.kind !== "context-compaction") return false;
-        const payload = activity.payload as { readonly requestId?: unknown } | null | undefined;
-        return payload?.requestId === pendingCompactionMessage.id;
-      }));
-  const isCompacting =
-    (isSendBusy || phase === "connecting" || phase === "running") &&
-    compactRequestIsActive &&
-    !compactionSettled;
+  const isCompacting = isContextCompacting({
+    messages: activeThread?.messages ?? [],
+    activities: activeThread?.activities ?? [],
+    latestTurn: activeLatestTurn,
+    isBusy: isSendBusy || phase === "connecting" || phase === "running",
+    pendingMessage: isSendBusy ? optimisticUserMessages.at(-1) : undefined,
+  });
   // The server records a running worktree setup on the thread for the whole
   // bootstrap window. That record, with no turn yet, is how a reload or another
   // client sees a worktree still being prepared, so it counts as working like
@@ -3739,18 +3777,22 @@ export default function ChatView(props: ChatViewProps) {
   // Keep a hidden, off-flow strip mounted for existing threads so the composer
   // can measure whether its relocated controls fit. The visible chrome remains
   // content-driven: Git/environment context or controls that actually fit.
-  const mountComposerContextStrip = shouldShowComposerContextStrip({
-    hasActiveProject: activeProject !== null,
-    isGitRepo,
-    showEnvironmentIndicator: showComposerEnvironmentIndicator,
-    hostsRestingComposerControls: routeKind === "server",
-  });
-  const showComposerContextStrip = shouldShowComposerContextStrip({
-    hasActiveProject: activeProject !== null,
-    isGitRepo,
-    showEnvironmentIndicator: showComposerEnvironmentIndicator,
-    hostsRestingComposerControls: routeKind === "server" && restingComposerControlsVisible,
-  });
+  const mountComposerContextStrip =
+    providerUIState.statuses.length > 0 ||
+    shouldShowComposerContextStrip({
+      hasActiveProject: activeProject !== null,
+      isGitRepo,
+      showEnvironmentIndicator: showComposerEnvironmentIndicator,
+      hostsRestingComposerControls: routeKind === "server",
+    });
+  const showComposerContextStrip =
+    providerUIState.statuses.length > 0 ||
+    shouldShowComposerContextStrip({
+      hasActiveProject: activeProject !== null,
+      isGitRepo,
+      showEnvironmentIndicator: showComposerEnvironmentIndicator,
+      hostsRestingComposerControls: routeKind === "server" && restingComposerControlsVisible,
+    });
   const terminalShortcutLabelOptions = useMemo(
     () => ({
       context: {
@@ -7318,11 +7360,17 @@ export default function ChatView(props: ChatViewProps) {
   const onSend = async (
     e?: { preventDefault: () => void },
     submissionIntent: ComposerSubmissionIntent = "foreground",
-    directAnnotation?: {
-      annotation: PreviewAnnotationPayload;
-      image: ComposerImageAttachment | null;
-    },
+    deliveryModeOrAnnotation?:
+      | TurnDeliveryMode
+      | {
+          annotation: PreviewAnnotationPayload;
+          image: ComposerImageAttachment | null;
+        },
   ) => {
+    const deliveryMode =
+      typeof deliveryModeOrAnnotation === "string" ? deliveryModeOrAnnotation : undefined;
+    const directAnnotation =
+      typeof deliveryModeOrAnnotation === "string" ? undefined : deliveryModeOrAnnotation;
     e?.preventDefault();
     // Typed out in full rather than picked from the menu. Attachments or contexts
     // mean the user is sending a prompt, so those go through as usual.
@@ -7665,6 +7713,7 @@ export default function ChatView(props: ChatViewProps) {
       );
     if (
       !directAnnotation &&
+      deliveryMode === undefined &&
       activeThreadKey &&
       (queueStillSending ||
         (phase === "running" &&
@@ -8411,6 +8460,7 @@ export default function ChatView(props: ChatViewProps) {
           titleSeed: title,
           runtimeMode,
           interactionMode: sendInteractionMode,
+          ...(deliveryMode !== undefined ? { deliveryMode } : {}),
           ...(bootstrap ? { bootstrap } : {}),
           createdAt: messageCreatedAt,
         },
@@ -8448,6 +8498,9 @@ export default function ChatView(props: ChatViewProps) {
         // snapshot is stale. Uploads may have outlasted a navigation, so only
         // the sending thread's panel clears.
         clearUsageLimitsFor(routeThreadKey);
+        if (deliveryMode === "steer") {
+          toastManager.add({ type: "success", title: "Steered the current turn" });
+        }
         if (turnUsesAttachmentUploads) {
           releaseDraftAttachments(composerAttachmentsSnapshot);
         }
@@ -8864,6 +8917,14 @@ export default function ChatView(props: ChatViewProps) {
     onRespondToUserInput,
     setActivePendingUserInputQuestionIndex,
   ]);
+
+  const onCancelActivePendingUserInput = useCallback(
+    (questionId: string) => {
+      if (!activePendingUserInput) return;
+      void onRespondToUserInput(activePendingUserInput.requestId, { [questionId]: null });
+    },
+    [activePendingUserInput, onRespondToUserInput],
+  );
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {
     if (!activePendingProgress) {
@@ -9986,6 +10047,14 @@ export default function ChatView(props: ChatViewProps) {
                     <ComposerSurface.Shell contextStrip={showComposerContextStrip}>
                       <ComposerSurface.Host>
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
+                          {providerWidgetsAbove.map((widget) => (
+                            <pre
+                              key={widget.key}
+                              className="mx-auto mb-1 whitespace-pre-wrap rounded-lg border border-border/60 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+                            >
+                              {widget.lines.join("\n")}
+                            </pre>
+                          ))}
                           <ChatComposer
                             multipleModelSelections={multipleModelSelections}
                             supportsMultipleModels={
@@ -10077,7 +10146,9 @@ export default function ChatView(props: ChatViewProps) {
                             }
                             restingControlsHost={restingComposerControlsHost}
                             restingControlsHaveLeadingContext={
-                              isGitRepo || showComposerEnvironmentIndicator
+                              isGitRepo ||
+                              showComposerEnvironmentIndicator ||
+                              providerUIState.statuses.length > 0
                             }
                             onRestingControlsVisibilityChange={setRestingComposerControlsVisible}
                             getTimelineScrollableNode={getTimelineScrollableNode}
@@ -10102,6 +10173,7 @@ export default function ChatView(props: ChatViewProps) {
                             }
                             onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
                             onDismissActivePendingUserInput={onDismissUserInput}
+                            onCancelActivePendingUserInput={onCancelActivePendingUserInput}
                             onPreviousActivePendingUserInputQuestion={
                               onPreviousActivePendingUserInputQuestion
                             }
@@ -10120,6 +10192,14 @@ export default function ChatView(props: ChatViewProps) {
                             onExpandImage={onExpandTimelineImage}
                             onFileOpen={openFileAttachment}
                           />
+                          {providerWidgetsBelow.map((widget) => (
+                            <pre
+                              key={widget.key}
+                              className="mx-auto mt-1 whitespace-pre-wrap rounded-lg border border-border/60 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+                            >
+                              {widget.lines.join("\n")}
+                            </pre>
+                          ))}
                         </div>
                       </ComposerSurface.Host>
                       <div className="min-h-0">
@@ -10135,6 +10215,7 @@ export default function ChatView(props: ChatViewProps) {
                                 environmentId={activeThread.environmentId}
                                 threadId={activeThread.id}
                                 showGitControls={isGitRepo}
+                                providerUIStatuses={providerUIState.statuses}
                                 {...(routeKind === "draft" && draftId ? { draftId } : {})}
                                 onEnvModeChange={onEnvModeChange}
                                 startFromOrigin={startFromOrigin}

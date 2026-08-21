@@ -2715,6 +2715,7 @@ it.layer(Layer.mergeAll(TestNodeServices, ServerSettingsModule.layerTest(), Test
                 "cursor",
                 "grok",
                 "opencode",
+                "pi",
               ]);
               assert.strictEqual(cursorProvider?.enabled, false);
               assert.strictEqual(cursorProvider?.status, "disabled");
