@@ -13,8 +13,12 @@ function formatPercentage(value: number | null): string | null {
   return `${Math.round(value)}%`;
 }
 
+export const canCompactContext = (supported: boolean, hasUsage: boolean): boolean =>
+  supported && hasUsage;
+
 export function ContextWindowMeter(props: {
   usage: ContextWindowSnapshot;
+  onCompact?: () => void;
   modelDisplayName?: string | null;
 }) {
   const { usage, modelDisplayName } = props;
@@ -130,6 +134,11 @@ export function ContextWindowMeter(props: {
             <div className="mt-1 text-pretty text-secondary-label text-[11px] font-medium">
               {formatContextWindowCompactionMessage(modelDisplayName)}
             </div>
+          ) : null}
+          {props.onCompact ? (
+            <Button size="sm" variant="secondary" type="button" onClick={props.onCompact}>
+              Compact context
+            </Button>
           ) : null}
         </div>
       </PopoverPopup>
