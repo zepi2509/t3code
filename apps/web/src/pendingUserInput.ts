@@ -42,7 +42,9 @@ export function resolvePendingUserInputAnswer(
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
   const customAnswer =
-    question.allowCustomAnswer === false ? null : normalizeDraftAnswer(draft?.customAnswer);
+    question.allowCustomAnswer === false
+      ? null
+      : normalizeDraftAnswer(draft?.customAnswer ?? question.prefill);
   if (customAnswer) {
     return customAnswer;
   }
@@ -138,7 +140,9 @@ export function derivePendingUserInputProgress(
     ? resolvePendingUserInputAnswer(activeQuestion, activeDraft)
     : null;
   const customAnswer =
-    activeQuestion?.allowCustomAnswer === false ? "" : (activeDraft?.customAnswer ?? "");
+    activeQuestion?.allowCustomAnswer === false
+      ? ""
+      : (activeDraft?.customAnswer ?? activeQuestion?.prefill ?? "");
   const answeredQuestionCount = countAnsweredPendingUserInputQuestions(questions, draftAnswers);
   const isLastQuestion =
     questions.length === 0 ? true : normalizedQuestionIndex >= questions.length - 1;
