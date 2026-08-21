@@ -20,6 +20,7 @@ import {
   ProviderInteractionMode,
   ProviderDriverKind,
   RuntimeMode,
+  type TurnDeliveryMode,
   TerminalOpenInput,
 } from "@t3tools/contracts";
 import {
@@ -102,6 +103,7 @@ import {
   deriveTurnPlans,
   findLatestProposedPlan,
   deriveWorkLogEntries,
+  deriveProviderUIState,
   hasActionableProposedPlan,
   isLatestTurnSettled,
 } from "../session-logic";
@@ -2316,9 +2318,52 @@ function ChatViewContent(props: ChatViewProps) {
   const selectedProvider: ProviderDriverKind = lockedProvider ?? unlockedSelectedProvider;
   const phase = derivePhase(activeThread?.session ?? null);
   const threadActivities = activeThread?.activities ?? EMPTY_ACTIVITIES;
-  const activeContextWindow = useMemo(
-    () => deriveLatestContextWindowSnapshot(threadActivities),
+  const providerUIState = useMemo(
+    () => deriveProviderUIState(threadActivities),
     [threadActivities],
+  );
+  const providerUISeenRef = useRef<{ threadKey: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const seen = providerUISeenRef.current;
+    if (!seen || seen.threadKey !== routeThreadKey) {
+      providerUISeenRef.current = {
+        threadKey: routeThreadKey,
+        ids: new Set(providerUIState.transient.map((entry) => entry.id)),
+      };
+      return;
+    }
+    for (const entry of providerUIState.transient) {
+      if (seen.ids.has(entry.id)) continue;
+      seen.ids.add(entry.id);
+      if (entry.effect.method === "notify") {
+        toastManager.add({
+          type: entry.effect.notifyType,
+          title: entry.effect.message,
+        });
+      } else if (entry.effect.method === "set_editor_text") {
+        promptRef.current = entry.effect.text;
+        setComposerDraftPrompt(composerDraftTarget, entry.effect.text);
+        composerRef.current?.resetCursorState({
+          cursor: entry.effect.text.length,
+          prompt: entry.effect.text,
+          detectTrigger: true,
+        });
+      }
+    }
+  }, [composerDraftTarget, providerUIState.transient, routeThreadKey, setComposerDraftPrompt]);
+  useEffect(() => {
+    if (!providerUIState.title) return;
+    const previous = document.title;
+    document.title = providerUIState.title;
+    return () => {
+      if (document.title === providerUIState.title) document.title = previous;
+    };
+  }, [providerUIState.title]);
+  const providerWidgetsAbove = providerUIState.widgets.filter(
+    (widget) => widget.placement === "aboveEditor",
+  );
+  const providerWidgetsBelow = providerUIState.widgets.filter(
+    (widget) => widget.placement === "belowEditor",
   );
   const workLogEntries = useMemo(() => deriveWorkLogEntries(threadActivities), [threadActivities]);
   const turnPlans = useMemo(() => deriveTurnPlans(threadActivities), [threadActivities]);
@@ -2857,11 +2902,13 @@ function ChatViewContent(props: ChatViewProps) {
     terminalUiLaunchContext?.threadId === activeThreadId ? terminalUiLaunchContext : null;
   // Default true while loading to avoid toolbar flicker.
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
-  const showComposerContextStrip = shouldShowComposerContextStrip({
-    hasActiveProject: activeProject !== null,
-    isGitRepo,
-    showEnvironmentIndicator: showComposerEnvironmentIndicator,
-  });
+  const showComposerContextStrip =
+    providerUIState.statuses.length > 0 ||
+    shouldShowComposerContextStrip({
+      hasActiveProject: activeProject !== null,
+      isGitRepo,
+      showEnvironmentIndicator: showComposerEnvironmentIndicator,
+    });
   const initialDiffPanelGitScope =
     gitStatusQuery.data?.hasWorkingTreeChanges === true ? "unstaged" : "branch";
   const diffPanelGitStatusResolutionKey = gitStatusQuery.data ? "resolved" : "pending";
@@ -5357,12 +5404,17 @@ function ChatViewContent(props: ChatViewProps) {
 
   const onSend = async (
     e?: { preventDefault: () => void },
-    submissionIntent: ComposerSubmissionIntent = "foreground",
-    directAnnotation?: {
-      annotation: PreviewAnnotationPayload;
-      image: ComposerImageAttachment | null;
-    },
+    deliveryModeOrAnnotation?:
+      | TurnDeliveryMode
+      | {
+          annotation: PreviewAnnotationPayload;
+          image: ComposerImageAttachment | null;
+        },
   ) => {
+    const deliveryMode =
+      typeof deliveryModeOrAnnotation === "string" ? deliveryModeOrAnnotation : undefined;
+    const directAnnotation =
+      typeof deliveryModeOrAnnotation === "string" ? undefined : deliveryModeOrAnnotation;
     e?.preventDefault();
     const notifyDirectAnnotationAttached = () => {
       if (!directAnnotation) return;
@@ -5898,6 +5950,7 @@ function ChatViewContent(props: ChatViewProps) {
           titleSeed: title,
           runtimeMode,
           interactionMode,
+          ...(deliveryMode !== undefined ? { deliveryMode } : {}),
           ...(bootstrap ? { bootstrap } : {}),
           createdAt: messageCreatedAt,
         },
@@ -5909,8 +5962,8 @@ function ChatViewContent(props: ChatViewProps) {
         failure = startResult;
       } else {
         turnStartSucceeded = true;
-        if (supportsAttachmentUploads) {
-          releaseAttachmentUploads(composerImagesSnapshot);
+        if (deliveryMode === "steer") {
+          toastManager.add({ type: "success", title: "Steered the current turn" });
         }
         acknowledgeActiveThreadWoke();
         if (backgroundThreadRef) {
@@ -6199,6 +6252,14 @@ function ChatViewContent(props: ChatViewProps) {
     onRespondToUserInput,
     setActivePendingUserInputQuestionIndex,
   ]);
+
+  const onCancelActivePendingUserInput = useCallback(
+    (questionId: string) => {
+      if (!activePendingUserInput) return;
+      void onRespondToUserInput(activePendingUserInput.requestId, { [questionId]: null });
+    },
+    [activePendingUserInput, onRespondToUserInput],
+  );
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {
     if (!activePendingProgress) {
@@ -7051,6 +7112,14 @@ function ChatViewContent(props: ChatViewProps) {
                     >
                       <div className="chat-composer-glass-host relative z-10 w-full rounded-[22px]">
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
+                          {providerWidgetsAbove.map((widget) => (
+                            <pre
+                              key={widget.key}
+                              className="mx-auto mb-1 whitespace-pre-wrap rounded-lg border border-border/60 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+                            >
+                              {widget.lines.join("\n")}
+                            </pre>
+                          ))}
                           <ChatComposer
                             composerRef={composerRef}
                             composerDraftTarget={composerDraftTarget}
@@ -7101,9 +7170,10 @@ function ChatViewContent(props: ChatViewProps) {
                               activeProject?.defaultModelSelection
                             }
                             activeThreadModelSelection={activeThread?.modelSelection}
-                            activeContextWindow={activeContextWindow}
-                            compactDisabled={compactDisabled}
-                            compactDisabledReason={compactDisabledReason}
+                            activeThreadActivities={activeThread?.activities}
+                            supportsManualCompaction={
+                              activeProviderStatus?.supportsManualCompaction === true
+                            }
                             resolvedTheme={resolvedTheme}
                             settings={settings}
                             keybindings={keybindings}
@@ -7121,6 +7191,7 @@ function ChatViewContent(props: ChatViewProps) {
                               onSelectActivePendingUserInputOption
                             }
                             onAdvanceActivePendingUserInput={onAdvanceActivePendingUserInput}
+                            onCancelActivePendingUserInput={onCancelActivePendingUserInput}
                             onPreviousActivePendingUserInputQuestion={
                               onPreviousActivePendingUserInputQuestion
                             }
@@ -7137,6 +7208,14 @@ function ChatViewContent(props: ChatViewProps) {
                             setThreadError={setThreadError}
                             onExpandImage={onExpandTimelineImage}
                           />
+                          {providerWidgetsBelow.map((widget) => (
+                            <pre
+                              key={widget.key}
+                              className="mx-auto mt-1 whitespace-pre-wrap rounded-lg border border-border/60 bg-card/90 px-3 py-2 text-xs text-muted-foreground"
+                            >
+                              {widget.lines.join("\n")}
+                            </pre>
+                          ))}
                         </div>
                       </div>
                       <div className="min-h-0">
@@ -7150,6 +7229,7 @@ function ChatViewContent(props: ChatViewProps) {
                                 environmentId={activeThread.environmentId}
                                 threadId={activeThread.id}
                                 showGitControls={isGitRepo}
+                                providerUIStatuses={providerUIState.statuses}
                                 {...(routeKind === "draft" && draftId ? { draftId } : {})}
                                 onEnvModeChange={onEnvModeChange}
                                 startFromOrigin={startFromOrigin}
