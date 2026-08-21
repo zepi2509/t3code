@@ -82,6 +82,7 @@ type ProviderIntentEvent = Extract<
       | "thread.approval-response-requested"
       | "thread.user-input-response-requested"
       | "thread.session-stop-requested"
+      | "thread.compact-requested"
       | "thread.settled"
       | "thread.session-set";
   }
@@ -836,6 +837,7 @@ const make = Effect.gen(function* () {
     readonly attachments?: ReadonlyArray<ChatAttachment>;
     readonly modelSelection?: ModelSelection;
     readonly interactionMode?: "default" | "plan";
+    readonly deliveryMode?: "steer" | "follow-up";
     readonly createdAt: string;
   }) {
     const thread = yield* resolveThreadShell(input.threadId);
@@ -887,6 +889,7 @@ const make = Effect.gen(function* () {
       ...(normalizedAttachments.length > 0 ? { attachments: normalizedAttachments } : {}),
       ...(modelForTurn !== undefined ? { modelSelection: modelForTurn } : {}),
       ...(input.interactionMode !== undefined ? { interactionMode: input.interactionMode } : {}),
+      ...(input.deliveryMode !== undefined ? { deliveryMode: input.deliveryMode } : {}),
     };
   });
 
@@ -1494,6 +1497,9 @@ const make = Effect.gen(function* () {
         ? { modelSelection: event.payload.modelSelection }
         : {}),
       interactionMode: event.payload.interactionMode,
+      ...(event.payload.deliveryMode !== undefined
+        ? { deliveryMode: event.payload.deliveryMode }
+        : {}),
       createdAt: event.payload.createdAt,
     }).pipe(
       Effect.map(Option.some),
@@ -1773,6 +1779,18 @@ const make = Effect.gen(function* () {
     );
   });
 
+  const processCompactRequested = Effect.fn("processCompactRequested")(function* (
+    event: Extract<ProviderIntentEvent, { type: "thread.compact-requested" }>,
+  ) {
+    // Persisted fork events still replay, but no longer bypass the shared /compact path.
+    yield* orchestrationEngine.dispatch({
+      type: "thread.compact",
+      commandId: CommandId.make(`compact-replay:${event.eventId}`),
+      threadId: event.payload.threadId,
+      createdAt: event.payload.createdAt,
+    });
+  });
+
   const processDomainEvent = Effect.fn("processDomainEvent")(function* (
     event: ProviderIntentEvent,
   ) {
@@ -1828,6 +1846,9 @@ const make = Effect.gen(function* () {
         return;
       case "thread.session-stop-requested":
         yield* processSessionStopRequested(event);
+        return;
+      case "thread.compact-requested":
+        yield* processCompactRequested(event);
         return;
       case "thread.settled": {
         const thread = yield* projectionSnapshotQuery.getThreadShellById(event.payload.threadId);
@@ -1897,6 +1918,7 @@ const make = Effect.gen(function* () {
         event.type === "thread.approval-response-requested" ||
         event.type === "thread.user-input-response-requested" ||
         event.type === "thread.session-stop-requested" ||
+        event.type === "thread.compact-requested" ||
         event.type === "thread.settled"
       ) {
         return yield* worker.enqueue(event);
