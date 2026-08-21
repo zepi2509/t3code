@@ -17,6 +17,8 @@ concurrency:
 jobs:
   deploy_relay:
     name: Deploy production relay
+    # Keep production deployment scoped to main if another trigger is added.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
