@@ -439,7 +439,7 @@ export function runtimeEventToActivities(
           createdAt: event.createdAt,
           tone: "error",
           kind: "runtime.error",
-          summary: "Runtime error",
+          summary: truncateDetail(event.payload.message, 120),
           payload: {
             message: truncateDetail(event.payload.message),
           },
