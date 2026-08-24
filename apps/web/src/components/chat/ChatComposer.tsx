@@ -3612,7 +3612,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     showSendWhileRunning={isMobileViewport}
                     onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                     onInterrupt={handleInterruptPrimaryAction}
-                    onSend={(deliveryMode) => submitComposer(undefined, deliveryMode)}
+                    onSend={(deliveryMode) => submitComposer(undefined, "foreground", deliveryMode)}
                     onImplementPlanInNewThread={handleImplementPlanInNewThreadPrimaryAction}
                     compactDisabled={
                       compactDisabled || noProviderAvailable || isSendBusy || isConnecting
