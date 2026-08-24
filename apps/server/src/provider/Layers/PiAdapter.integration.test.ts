@@ -22,7 +22,7 @@ import { ServerConfig } from "../../config.ts";
 import type { PiAdapterShape } from "../Services/PiAdapter.ts";
 import { makePiAdapter } from "./PiAdapter.ts";
 import type {
-  JsonAgentSessionEvent as AgentSessionEvent,
+  PiAgentEvent as AgentSessionEvent,
   PiRpcTransport,
   PiStdoutMessage,
   RpcCommand,
@@ -254,6 +254,40 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       );
       expect(events.some((event) => event.type === "runtime.warning")).toBe(false);
       expect(events.some((event) => event.type === "provider.ui")).toBe(false);
+    }),
+  );
+
+  it.effect("surfaces extension failures without poisoning the Pi session", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-extension-error");
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
+      );
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "search", attachments: [] });
+      yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "extension_error",
+        extensionPath: "/tmp/web-search.ts",
+        event: "tool_result",
+        error: "Fetch failed",
+      } as AgentSessionEvent);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
+
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      const warning = events.find((event) => event.type === "runtime.warning");
+      expect(warning?.payload.message).toBe("Pi extension error: Fetch failed");
+      expect(events.some((event) => event.type === "runtime.error")).toBe(false);
     }),
   );
 
