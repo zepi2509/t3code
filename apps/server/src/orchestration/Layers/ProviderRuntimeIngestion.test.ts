@@ -3960,6 +3960,7 @@ describe("ProviderRuntimeIngestion", () => {
         : undefined;
 
     expect(activity?.kind).toBe("runtime.error");
+    expect(activity?.summary).toBe("runtime activity exploded");
     expect(activityPayload?.message).toBe("runtime activity exploded");
     expect(activityPayload?.code).toBe("subscription_sharing_usage_limit_exceeded");
   });
