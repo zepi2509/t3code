@@ -9,6 +9,7 @@ import {
   classifyPiToolItemType,
   isPiApprovalConfirmed,
   parseNumberedList,
+  renderPiValue,
   summarizePiToolArgs,
 } from "./PiAdapter.ts";
 
@@ -62,6 +63,20 @@ describe("summarizePiToolArgs", () => {
     expect(summarizePiToolArgs({ foo: "bar" })).toBe('{"foo":"bar"}');
     expect(summarizePiToolArgs(undefined)).toBeUndefined();
     expect(summarizePiToolArgs("string")).toBeUndefined();
+  });
+});
+
+describe("renderPiValue", () => {
+  it("renders Pi content blocks as readable text instead of JSON", () => {
+    expect(
+      renderPiValue({
+        content: [
+          { type: "text", text: "Worker failed" },
+          { type: "text", text: "Try again" },
+        ],
+        details: { worker: "docs" },
+      }),
+    ).toBe("Worker failed\nTry again");
   });
 });
 
