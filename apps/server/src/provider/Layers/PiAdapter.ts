@@ -221,6 +221,30 @@ export function summarizePiToolArgs(args: unknown): string | undefined {
   }
 }
 
+export function renderPiValue(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  const content =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)["content"]
+      : value;
+  if (Array.isArray(content)) {
+    const text = content.flatMap((part) =>
+      part &&
+      typeof part === "object" &&
+      typeof (part as Record<string, unknown>)["text"] === "string"
+        ? [(part as Record<string, string>)["text"]]
+        : [],
+    );
+    if (text.length > 0) return text.join("\n");
+  }
+  if (value === undefined) return undefined;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 // Pi encodes an RPC multi-select as `Title\n1. A\n2. B`
 export function parseNumberedList(
   text: string,
@@ -524,16 +548,6 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       ),
     );
 
-  const renderPiValue = (value: unknown): string | undefined => {
-    if (typeof value === "string") return value;
-    if (value === undefined) return undefined;
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return String(value);
-    }
-  };
-
   const handlePiEvent = (context: PiSessionContext, event: PiAgentEvent): Effect.Effect<void> =>
     Effect.gen(function* () {
       const stamp = yield* makeEventStamp();
@@ -827,10 +841,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         case "extension_error": {
           yield* offerRuntimeEvent({
             ...base,
-            type: "runtime.error",
+            type: "runtime.warning",
             payload: {
               message: `Pi extension error: ${event.error}`,
-              class: "provider_error",
               detail: { extensionPath: event.extensionPath, event: event.event },
             },
           });
