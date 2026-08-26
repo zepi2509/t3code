@@ -2364,6 +2364,10 @@ function ChatViewContent(props: ChatViewProps) {
   const providerWidgetsBelow = providerUIState.widgets.filter(
     (widget) => widget.placement === "belowEditor",
   );
+  const activeContextWindow = useMemo(
+    () => deriveLatestContextWindowSnapshot(threadActivities),
+    [threadActivities],
+  );
   const workLogEntries = useMemo(() => deriveWorkLogEntries(threadActivities), [threadActivities]);
   const turnPlans = useMemo(() => deriveTurnPlans(threadActivities), [threadActivities]);
   // Native subagent fold: memoized by activity-list identity, shared by the
@@ -5376,6 +5380,7 @@ function ChatViewContent(props: ChatViewProps) {
 
   const onSend = async (
     e?: { preventDefault: () => void },
+    submissionIntent: ComposerSubmissionIntent = "foreground",
     deliveryModeOrAnnotation?:
       | TurnDeliveryMode
       | {
@@ -5936,6 +5941,9 @@ function ChatViewContent(props: ChatViewProps) {
         turnStartSucceeded = true;
         if (deliveryMode === "steer") {
           toastManager.add({ type: "success", title: "Steered the current turn" });
+        }
+        if (supportsAttachmentUploads) {
+          releaseAttachmentUploads(composerImagesSnapshot);
         }
         acknowledgeActiveThreadWoke();
         if (backgroundThreadRef) {
@@ -7141,10 +7149,12 @@ function ChatViewContent(props: ChatViewProps) {
                               activeProject?.defaultModelSelection
                             }
                             activeThreadModelSelection={activeThread?.modelSelection}
-                            activeThreadActivities={activeThread?.activities}
+                            activeContextWindow={activeContextWindow}
                             supportsManualCompaction={
                               activeProviderStatus?.supportsManualCompaction === true
                             }
+                            compactDisabled={compactDisabled}
+                            compactDisabledReason={compactDisabledReason}
                             resolvedTheme={resolvedTheme}
                             settings={settings}
                             keybindings={keybindings}
