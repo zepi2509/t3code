@@ -245,7 +245,7 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         type: "extension_ui_request",
         id: "async-state",
         method: "set_editor_text",
-        text: 'PI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
+        text: ' \nPI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
       } as RpcExtensionUIRequest);
       yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
 
