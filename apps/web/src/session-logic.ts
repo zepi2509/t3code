@@ -9,6 +9,8 @@ import {
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
   ProviderDriverKind,
+  ProviderApprovalOption,
+  ProviderRequestKind,
   type ProviderUIEffect,
   type ToolLifecycleItemType,
   type UserInputQuestion,
