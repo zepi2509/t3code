@@ -37,8 +37,23 @@ jobs:
             git commit --amend --no-edit
           fi
           sync_ref="$(git rev-parse HEAD)"
-          git push --force-with-lease origin HEAD:main
+          if git diff --quiet "$base_ref" -- pnpm-lock.yaml pnpm-workspace.yaml; then
+            echo "pnpm_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pnpm_changed=true" >> "$GITHUB_OUTPUT"
+          fi
           echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Install Nix
+        if: steps.sync.outputs.pnpm_changed == 'true'
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Verify pnpm dependency hashes
+        if: steps.sync.outputs.pnpm_changed == 'true'
+        run: nix build .#unwrapped .#server --no-link --show-trace
+
+      - name: Push synced main
+        run: git push --force-with-lease origin HEAD:main
 
       - id: release
         name: Find latest upstream release
