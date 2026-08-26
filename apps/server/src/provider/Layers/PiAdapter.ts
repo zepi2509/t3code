@@ -898,7 +898,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     Effect.gen(function* () {
       if (
         request.method === "set_editor_text" &&
-        request.text.startsWith(PI_SUBAGENT_ASYNC_EDITOR_PREFIX)
+        request.text.trimStart().startsWith(PI_SUBAGENT_ASYNC_EDITOR_PREFIX)
       ) {
         return;
       }
