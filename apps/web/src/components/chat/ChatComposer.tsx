@@ -442,7 +442,6 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   compact: boolean;
   activeContextWindow: ContextWindowSnapshot | null;
   activeThreadModelDisplayName: string | null;
-  onCompact?: () => void;
   isPreparingWorktree: boolean;
   pendingAction: {
     questionIndex: number;
@@ -477,7 +476,9 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         <ContextWindowMeter
           usage={props.activeContextWindow}
           modelDisplayName={props.activeThreadModelDisplayName}
-          {...(props.onCompact ? { onCompact: props.onCompact } : {})}
+          onCompact={props.onCompactContext}
+          compactDisabled={props.compactDisabled}
+          compactDisabledReason={props.compactDisabledReason}
         />
       ) : null}
       {props.isPreparingWorktree ? (
@@ -628,8 +629,10 @@ export interface ChatComposerProps {
   activeThreadModelSelection: ModelSelection | null | undefined;
 
   // Context window
-  activeThreadActivities: Thread["activities"] | undefined;
+  activeContextWindow: ContextWindowSnapshot | null;
   supportsManualCompaction: boolean;
+  compactDisabled: boolean;
+  compactDisabledReason: string | null;
 
   // Misc
   resolvedTheme: "light" | "dark";
@@ -646,7 +649,11 @@ export interface ChatComposerProps {
   composerRef: React.RefObject<ChatComposerHandle | null>;
 
   // Callbacks
-  onSend: (e?: { preventDefault: () => void }, deliveryMode?: "steer" | "follow-up") => void;
+  onSend: (
+    e?: { preventDefault: () => void },
+    intent?: ComposerSubmissionIntent,
+    deliveryMode?: "steer" | "follow-up",
+  ) => void;
   onInterrupt: () => void;
   onImplementPlanInNewThread: () => void;
   onRespondToApproval: (
@@ -722,8 +729,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     providerStatuses,
     activeProjectDefaultModelSelection,
     activeThreadModelSelection,
-    activeThreadActivities,
+    activeContextWindow,
     supportsManualCompaction,
+    compactDisabled,
+    compactDisabledReason,
     resolvedTheme,
     settings,
     keybindings,
@@ -1974,7 +1983,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   ]);
 
   const submitComposer = useCallback(
-    (event?: { preventDefault: () => void }, deliveryMode?: "steer" | "follow-up") => {
+    (
+      event?: { preventDefault: () => void },
+      intent: ComposerSubmissionIntent = "foreground",
+      deliveryMode?: "steer" | "follow-up",
+    ) => {
       if (noProviderAvailable || isSendDisabled) {
         event?.preventDefault();
         return;
@@ -2000,7 +2013,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           // ChatView reports its final composed-input preflight through the
           // composer handle before its first asynchronous send step.
           providerInputRejectedRef.current = false;
-          onSend(sendEvent, deliveryMode);
+          onSend(sendEvent, intent, deliveryMode);
           return !providerInputRejectedRef.current;
         },
       });
@@ -2131,14 +2144,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       selectedProvider === "pi" &&
       resolveShortcutCommand(event, keybindings) === "composer.sendAfterCompletion"
     ) {
-      submitComposer(undefined, "follow-up");
+      submitComposer(undefined, "foreground", "follow-up");
       return true;
     }
-    if (
-      key === "Enter" &&
-      shouldSubmitComposerOnEnter({ isMobileViewport, shiftKey: event.shiftKey })
-    ) {
-      submitComposer();
+    const submissionIntent =
+      key === "Enter"
+        ? composerSubmissionIntentForEnter({
+            isMobileViewport,
+            shiftKey: event.shiftKey,
+            modifierKey: event.metaKey || event.ctrlKey,
+            isDraftThread: routeKind === "draft",
+          })
+        : null;
+    if (submissionIntent) {
+      submitComposer(undefined, submissionIntent);
       return true;
     }
     return false;
@@ -3108,7 +3127,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       preserveComposerFocusOnPointerDown
                       onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                       onInterrupt={handleInterruptPrimaryAction}
-                      onSend={(deliveryMode) => submitComposer(undefined, deliveryMode)}
+                      onSend={(deliveryMode) =>
+                        submitComposer(undefined, "foreground", deliveryMode)
+                      }
                       onImplementPlanInNewThread={handleImplementPlanInNewThreadPrimaryAction}
                     />
                   ) : null}
@@ -3491,7 +3512,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       preserveComposerFocusOnPointerDown
                       onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                       onInterrupt={handleInterruptPrimaryAction}
-                      onSend={(deliveryMode) => submitComposer(undefined, deliveryMode)}
+                      onSend={(deliveryMode) =>
+                        submitComposer(undefined, "foreground", deliveryMode)
+                      }
                       onImplementPlanInNewThread={handleImplementPlanInNewThreadPrimaryAction}
                     />
                   </div>
@@ -3602,9 +3625,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     compact={isComposerPrimaryActionsCompact}
                     activeContextWindow={activeContextWindow}
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
-                    {...(canCompactContext(supportsManualCompaction, activeContextWindow !== null)
-                      ? { onCompact: handleCompact }
-                      : {})}
                     pendingAction={pendingPrimaryAction}
                     isRunning={phase === "running"}
                     supportsSteer={selectedProvider === "pi" || selectedProvider === "codex"}
@@ -3635,7 +3655,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     compactDisabledReason={resolvedCompactDisabledReason}
                     {...(selectedProvider === "claudeAgent"
                       ? { onCompactContext: compactThreadContext }
-                      : {})}
+                      : canCompactContext(supportsManualCompaction, activeContextWindow !== null)
+                        ? {
+                            onCompactContext: handleCompact,
+                            compactDisabled: false,
+                            compactDisabledReason: null,
+                          }
+                        : {})}
                   />
                 </div>
               </div>
