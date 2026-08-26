@@ -180,8 +180,10 @@ jobs:
     name: Release quality checks
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      FLAKE_REF: github:${{ github.repository }}/${{ needs.preflight.outputs.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -229,18 +231,16 @@ jobs:
       - name: Smoke test Nix server package
         run: nix run "$FLAKE_REF#server" -- --version
 
-      - id: previous_tag
-        name: Resolve previous release tag
-        run: |
-          node scripts/resolve-previous-release-tag.ts \
-            --channel "${{ steps.release_meta.outputs.release_channel }}" \
-            --current-tag "${{ steps.release_meta.outputs.tag }}" \
-            --github-output
-
   relay_public_config:
     name: Resolve T3 Connect public config
-    needs: preflight
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    # Consumes only the commit SHA, not preflight's resolved version, so it runs
+    # alongside preflight instead of after it. The condition mirrors preflight's:
+    # check_changes is skipped on non-schedule events (skipped is neither failure
+    # nor success, so success() would be wrong here).
+    needs: [check_changes]
+    if: |
+      !failure() && !cancelled() &&
+      (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment:
@@ -335,8 +335,12 @@ jobs:
   # machine. node-pty is N-API, so one binary works across all WSL Node versions.
   build_wsl_node_pty:
     name: Build WSL node-pty (linux-x64)
-    needs: [preflight]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
+    # Same gating as relay_public_config: only the commit SHA is needed, so this
+    # runs alongside preflight. See the condition comment there.
+    needs: [check_changes]
+    if: |
+      !failure() && !cancelled() &&
+      (github.event_name != 'schedule' || needs.check_changes.outputs.has_changes == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -748,8 +752,8 @@ jobs:
 
   publish_cli:
     name: Publish CLI to npm
-    needs: [preflight, relay_public_config, build]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build.result == 'success' }}
+    needs: [preflight, relay_public_config, quality, build]
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.quality.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
