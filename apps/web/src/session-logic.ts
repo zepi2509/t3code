@@ -818,6 +818,10 @@ function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07/g, "");
 }
 
+export function isPiSubagentAsyncEditorText(text: string): boolean {
+  return text.trimStart().startsWith("PI_SUBAGENT_ASYNC_JSON:");
+}
+
 export interface ProviderUIState {
   readonly statuses: ReadonlyArray<{ key: string; text: string }>;
   readonly widgets: ReadonlyArray<{
@@ -850,8 +854,12 @@ export function deriveProviderUIState(
     const effect = activity.payload as ProviderUIEffect;
     switch (effect.method) {
       case "notify":
-      case "set_editor_text":
         transient.push({ id: activity.id, effect });
+        break;
+      case "set_editor_text":
+        if (!isPiSubagentAsyncEditorText(effect.text)) {
+          transient.push({ id: activity.id, effect });
+        }
         break;
       case "setStatus":
         if (effect.statusText === undefined) statuses.delete(effect.statusKey);
