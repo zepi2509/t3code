@@ -102,6 +102,14 @@ describe("deriveProviderUIState", () => {
         kind: "provider.ui",
         payload: { method: "set_editor_text", text: "prefill" },
       }),
+      makeActivity({
+        id: "internal-editor",
+        kind: "provider.ui",
+        payload: {
+          method: "set_editor_text",
+          text: ' \nPI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
+        },
+      }),
     ]);
     expect(state.statuses).toEqual([{ key: "mode", text: "⚡ FULL" }]);
     expect(state.widgets).toEqual([{ key: "w", lines: ["hello"], placement: "belowEditor" }]);
