@@ -106,6 +106,7 @@ import {
   deriveProviderUIState,
   hasActionableProposedPlan,
   isLatestTurnSettled,
+  isPiSubagentAsyncEditorText,
 } from "../session-logic";
 import { type LegendListRef } from "@legendapp/list/react";
 import { getAnchoredTurnMetrics, type TimelineScrollMode } from "./chat/timelineScrollAnchoring";
@@ -2323,6 +2324,13 @@ function ChatViewContent(props: ChatViewProps) {
     [threadActivities],
   );
   const providerUISeenRef = useRef<{ threadKey: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const prompt = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt;
+    if (!prompt || !isPiSubagentAsyncEditorText(prompt)) return;
+    promptRef.current = "";
+    setComposerDraftPrompt(composerDraftTarget, "");
+    composerRef.current?.resetCursorState();
+  }, [composerDraftTarget, composerRef, routeThreadKey, setComposerDraftPrompt]);
   useEffect(() => {
     const seen = providerUISeenRef.current;
     if (!seen || seen.threadKey !== routeThreadKey) {
