@@ -41,6 +41,7 @@ const HarnessLayer = ServerConfig.layerTest(process.cwd(), {
 interface FakePiTransport {
   readonly transport: PiRpcTransport;
   readonly commands: Array<RpcCommand>;
+  readonly requestTimeouts: Array<{ readonly type: string; readonly timeoutMs: number }>;
   readonly extensionResponses: Array<RpcExtensionUIResponse>;
   readonly pushEvent: (event: AgentSessionEvent) => Effect.Effect<void>;
   readonly pushExtensionUI: (request: RpcExtensionUIRequest) => Effect.Effect<void>;
@@ -52,6 +53,7 @@ const asResponse = (value: unknown): RpcResponse => value as RpcResponse;
 const makeFakePiRpcTransport = Effect.gen(function* () {
   const messages = yield* Queue.unbounded<PiStdoutMessage>();
   const commands: Array<RpcCommand> = [];
+  const requestTimeouts: Array<{ type: string; timeoutMs: number }> = [];
   const extensionResponses: Array<RpcExtensionUIResponse> = [];
   const responses = new Map<string, RpcResponse>();
   responses.set(
@@ -109,10 +111,11 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
       Effect.sync(() => {
         extensionResponses.push(response);
       }),
-    request: (command) =>
+    request: (command, _id, timeoutMs) =>
       Effect.sync(() => {
         commands.push(command);
-        return responses.get((command as { type: string }).type);
+        requestTimeouts.push({ type: command.type, timeoutMs });
+        return responses.get(command.type);
       }),
     messages,
     kill: Effect.void,
@@ -121,6 +124,7 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
   return {
     transport,
     commands,
+    requestTimeouts,
     extensionResponses,
     pushEvent: (event) => Queue.offer(messages, { _tag: "event", event }).pipe(Effect.asVoid),
     pushExtensionUI: (request) =>
@@ -213,6 +217,88 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
 
       yield* adapter.stopSession(threadId);
       expect(yield* adapter.hasSession(threadId)).toBe(false);
+    }),
+  );
+
+  it.effect("finishes manual compaction without leaving the session waiting", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      fake.setResponse(
+        "compact",
+        asResponse({ type: "response", command: "compact", success: true }),
+      );
+      const threadId = ThreadId.make("pi-int-compact");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "thread.state.changed",
+      );
+
+      yield* adapter.compactThread!(threadId);
+      yield* fake.pushEvent({ type: "compaction_start", reason: "manual" } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "compaction_end",
+        reason: "manual",
+        result: {
+          summary: "Compacted",
+          firstKeptEntryId: "entry-1",
+          tokensBefore: 100_000,
+          estimatedTokensAfter: 10_000,
+        },
+        aborted: false,
+        willRetry: false,
+      } as AgentSessionEvent);
+
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: "session.state.changed",
+          payload: { state: "ready" },
+        }),
+      );
+      expect(events.some((event) => event.type === "thread.state.changed")).toBe(true);
+      expect(fake.requestTimeouts.find((request) => request.type === "compact")?.timeoutMs).toBe(
+        180_000,
+      );
+    }),
+  );
+
+  it.effect("does not report an aborted compaction as successful", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-compact-aborted");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "session.state.changed" && event.payload.state === "ready",
+      );
+
+      yield* fake.pushEvent({ type: "compaction_start", reason: "manual" } as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "compaction_end",
+        reason: "manual",
+        aborted: true,
+        willRetry: false,
+      } as AgentSessionEvent);
+
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      expect(events.some((event) => event.type === "thread.state.changed")).toBe(false);
     }),
   );
 
