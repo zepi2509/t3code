@@ -82,6 +82,7 @@ const PI_MESSAGES_TIMEOUT_MS = 5_000;
 const PI_FORK_TIMEOUT_MS = 15_000;
 const PI_MODEL_OPTIONS_TIMEOUT_MS = 5_000;
 const PI_PROMPT_TIMEOUT_MS = 30_000;
+const PI_COMPACT_TIMEOUT_MS = 180_000;
 const PI_APPROVAL_TITLE_PREFIX = "[t3-tool-approval] ";
 const PI_SUBAGENT_ASYNC_EDITOR_PREFIX = "PI_SUBAGENT_ASYNC_JSON:";
 
@@ -797,8 +798,19 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         }
 
         case "compaction_end": {
+          if (event.reason === "manual") {
+            yield* offerRuntimeEvent({
+              ...base,
+              type: "session.state.changed",
+              payload: { state: "ready" },
+            });
+          }
+          if (!event.result) return;
+
+          const compactedStamp = yield* makeEventStamp();
           yield* offerRuntimeEvent({
             ...base,
+            ...compactedStamp,
             type: "thread.state.changed",
             payload: {
               state: "compacted",
@@ -807,7 +819,6 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
                 result: event.result,
                 aborted: event.aborted,
                 willRetry: event.willRetry,
-                ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
               },
             },
           });
@@ -1625,7 +1636,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       const response = yield* context.transport.request(
         buildPiCompactCommand(),
         `pi-compact-${yield* nextUuid}`,
-        PI_PROMPT_TIMEOUT_MS,
+        PI_COMPACT_TIMEOUT_MS,
       );
       if (!piResponseSucceeded(response, "compact")) {
         return yield* new ProviderAdapterRequestError({
