@@ -4,7 +4,6 @@ import {
   type ServerProviderModel,
   type ServerProviderSkill,
   type ServerProviderSlashCommand,
-  ProviderDriverKind,
 } from "@t3tools/contracts";
 import { createModelCapabilities } from "@t3tools/shared/model";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
@@ -30,8 +29,6 @@ import {
   piCommandsToProviderResources,
   piModelInfoToServerModel,
 } from "./PiRpcClient.ts";
-
-const PROVIDER = ProviderDriverKind.make("pi");
 
 const PI_PRESENTATION = {
   displayName: "Pi",
