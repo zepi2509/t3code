@@ -178,7 +178,6 @@ import {
   renderProviderTraitsPicker,
 } from "./composerProviderState";
 import { canCompactContext, ContextWindowMeter } from "./ContextWindowMeter";
-import { useAtomCommand } from "../../state/use-atom-command";
 import { threadEnvironment } from "../../state/threads";
 import { resolveContextWindowModelDisplayName } from "./ContextWindowMeter.logic";
 import {
@@ -4799,6 +4798,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     questionIndex={activePendingQuestionIndex}
                     onToggleOption={onSelectActivePendingUserInputOption}
                     onAdvance={onAdvanceActivePendingUserInput}
+                    onCancel={onCancelActivePendingUserInput}
                   />
                 ) : !isComposerCollapsedMobile && showPlanFollowUpPrompt && activeProposedPlan ? (
                   <ComposerPlanFollowUpBanner
@@ -4814,6 +4814,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       questionIndex={activePendingQuestionIndex}
                       onToggleOption={onSelectActivePendingUserInputOption}
                       onAdvance={onAdvanceActivePendingUserInput}
+                      onCancel={onCancelActivePendingUserInput}
                     />
                     <ComposerBanner.Body>
                       <div
@@ -4843,6 +4844,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             compact
                             pendingAction={pendingPrimaryAction}
                             isRunning={false}
+                            supportsSteer={false}
+                            supportsFollowUp={false}
                             showPlanFollowUpPrompt={false}
                             promptHasText={false}
                             isSendBusy={isSendBusy}
@@ -4858,6 +4861,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             preserveComposerFocusOnPointerDown
                             onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                             onInterrupt={handleInterruptPrimaryAction}
+                            onSend={(deliveryMode) =>
+                              submitComposer(undefined, "foreground", deliveryMode)
+                            }
                             onImplementPlanInNewThread={handleImplementPlanInNewThreadPrimaryAction}
                           />
                         ) : null}
