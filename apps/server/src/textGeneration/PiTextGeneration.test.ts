@@ -170,3 +170,22 @@ it.effect("fails with a TextGenerationError when the assistant text is unavailab
     }),
   ).pipe(Effect.provide(PiTextGenerationTestLayer)),
 );
+
+it.effect("fails immediately when Pi rejects the prompt", () =>
+  withFakePi({ PI_MOCK_PROMPT_FAILS: "1" }, (textGeneration) =>
+    Effect.gen(function* () {
+      const result = yield* textGeneration
+        .generateThreadTitle({
+          cwd: process.cwd(),
+          message: "anything",
+          modelSelection: DEFAULT_TEST_MODEL_SELECTION,
+        })
+        .pipe(Effect.result);
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(result.failure).toBeInstanceOf(TextGenerationError);
+        expect(result.failure.message).toContain("mock prompt rejected");
+      }
+    }),
+  ).pipe(Effect.provide(PiTextGenerationTestLayer)),
+);
