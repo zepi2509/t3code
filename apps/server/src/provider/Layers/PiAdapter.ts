@@ -583,10 +583,26 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
         case "message_end": {
           const message = event.message as unknown as Record<string, unknown>;
-          if (message["role"] !== "custom" || message["display"] === false) return;
           const content = renderPiValue(message["content"]);
           if (!content?.trim()) return;
           const turnId = context.turnState?.turnId;
+          if (message["role"] === "assistant") {
+            if (!turnId) return;
+            yield* offerRuntimeEvent({
+              ...base,
+              turnId,
+              itemId: RuntimeItemId.make(String(stamp.eventId)),
+              type: "item.completed",
+              payload: {
+                itemType: "assistant_message",
+                status: "completed",
+                title: "Assistant message",
+                detail: content,
+              },
+            });
+            return;
+          }
+          if (message["role"] !== "custom" || message["display"] === false) return;
           yield* offerRuntimeEvent({
             ...base,
             ...(turnId ? { turnId } : {}),
