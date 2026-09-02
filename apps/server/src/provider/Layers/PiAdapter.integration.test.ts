@@ -191,6 +191,16 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       yield* fake.pushEvent({ type: "agent_start" } as AgentSessionEvent);
       yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
       yield* fake.pushEvent({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "Checking files" },
+            { type: "toolCall", id: "call-1", name: "bash", arguments: {} },
+          ],
+        },
+      } as AgentSessionEvent);
+      yield* fake.pushEvent({
         type: "message_update",
         assistantMessageEvent: { type: "text_delta", delta: "hi" },
       } as AgentSessionEvent);
@@ -214,11 +224,12 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         expect(delta.payload.delta).toBe("hi");
         expect(delta.raw?.source).toBe("pi.rpc.event");
       }
-      const assistantCompleted = events.find(
+      const assistantCompleted = events.filter(
         (event) =>
           event.type === "item.completed" && event.payload.itemType === "assistant_message",
       );
-      expect(assistantCompleted).toMatchObject({
+      expect(assistantCompleted).toHaveLength(1);
+      expect(assistantCompleted[0]).toMatchObject({
         payload: { detail: "hi", status: "completed" },
       });
       const completed = events.find((event) => event.type === "turn.completed");
