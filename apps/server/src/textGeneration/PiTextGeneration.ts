@@ -11,6 +11,7 @@ import { extractJsonObject } from "@t3tools/shared/schemaJson";
 import {
   extractLastAssistantText,
   makePiRpcTransport,
+  piResponseSucceeded,
   resolvePiThinkingLevel,
 } from "../provider/Layers/PiRpcClient.ts";
 import * as TextGeneration from "./TextGeneration.ts";
@@ -28,6 +29,7 @@ import {
 } from "./TextGenerationUtils.ts";
 
 const PI_TIMEOUT_MS = 180_000;
+const PI_PROMPT_TIMEOUT_MS = 30_000;
 const PI_LAST_TEXT_TIMEOUT_MS = 5_000;
 
 type TextGenOperation =
@@ -69,16 +71,53 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         env: environment,
         onExit: Effect.void,
       });
-      yield* transport.writeCommand({ type: "prompt", message: input.message });
-      yield* Stream.fromQueue(transport.messages).pipe(
-        Stream.takeUntil(
-          (message) =>
-            message._tag === "event" &&
-            message.event.type === "agent_end" &&
-            message.event.willRetry !== true,
-        ),
-        Stream.runDrain,
+      const promptResponse = yield* transport.request(
+        { type: "prompt", message: input.message },
+        "pi-textgen-prompt",
+        PI_PROMPT_TIMEOUT_MS,
       );
+      if (!piResponseSucceeded(promptResponse, "prompt")) {
+        const responseError = (promptResponse as { readonly error?: unknown } | undefined)?.error;
+        return yield* new TextGenerationError({
+          operation: input.operation,
+          detail:
+            typeof responseError === "string" && responseError.trim().length > 0
+              ? `Pi rejected the prompt: ${responseError.trim()}`
+              : "Pi rejected the prompt.",
+        });
+      }
+
+      const terminalError = yield* Stream.fromQueue(transport.messages).pipe(
+        Stream.takeUntil(
+          (message) => message._tag === "event" && message.event.type === "agent_settled",
+        ),
+        Stream.runFold(
+          (): string | undefined => undefined,
+          (error, message) => {
+            if (message._tag !== "event") return error;
+            if (message.event.type === "auto_retry_end") {
+              return message.event.success
+                ? undefined
+                : message.event.finalError || error || "Pi exhausted automatic retries.";
+            }
+            if (message.event.type !== "message_end") return error;
+            const assistant = message.event.message as unknown as Record<string, unknown>;
+            if (assistant["role"] !== "assistant") return error;
+            if (assistant["stopReason"] !== "error") return undefined;
+            return typeof assistant["errorMessage"] === "string" &&
+              assistant["errorMessage"].trim().length > 0
+              ? assistant["errorMessage"].trim()
+              : "Pi assistant failed.";
+          },
+        ),
+      );
+      if (terminalError) {
+        return yield* new TextGenerationError({
+          operation: input.operation,
+          detail: terminalError,
+        });
+      }
+
       const response = yield* transport.request(
         { type: "get_last_assistant_text" },
         "pi-textgen-last-text",
