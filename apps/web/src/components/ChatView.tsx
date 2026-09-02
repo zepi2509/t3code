@@ -127,8 +127,8 @@ import {
   isLatestTurnSettled,
   selectHandoffImageResources,
   type TimelineEntriesProjection,
-  isPiSubagentAsyncEditorText,
 } from "../session-logic";
+import { isPiSubagentAsyncEditorText } from "../piEditorText";
 import { type LegendListRef } from "@legendapp/list/react";
 import {
   CHAT_TIMELINE_ANCHOR_OFFSET,
