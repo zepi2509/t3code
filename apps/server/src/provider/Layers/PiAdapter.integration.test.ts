@@ -16,6 +16,7 @@ import {
   ProviderDriverKind,
   type ProviderRuntimeEvent,
   ThreadId,
+  TurnId,
 } from "@t3tools/contracts";
 
 import { ServerConfig } from "../../config.ts";
@@ -90,6 +91,14 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
   responses.set(
     "follow_up",
     asResponse({ type: "response", id: "x", command: "follow_up", success: true }),
+  );
+  responses.set(
+    "clear_queue",
+    asResponse({ type: "response", id: "x", command: "clear_queue", success: true }),
+  );
+  responses.set(
+    "abort",
+    asResponse({ type: "response", id: "x", command: "abort", success: true }),
   );
   responses.set(
     "get_commands",
@@ -239,6 +248,123 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
 
       yield* adapter.stopSession(threadId);
       expect(yield* adapter.hasSession(threadId)).toBe(false);
+    }),
+  );
+
+  it.effect("fails a turn when Pi exhausts retries with an assistant error", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-provider-error");
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
+      );
+
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "fail", attachments: [] });
+      yield* fake.pushEvent({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "provider quota exhausted",
+        },
+      } as unknown as AgentSessionEvent);
+      yield* fake.pushEvent({
+        type: "auto_retry_end",
+        success: false,
+        finalError: "provider quota exhausted",
+        attempt: 3,
+      } as AgentSessionEvent);
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
+
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      expect(events.find((event) => event.type === "turn.completed")).toMatchObject({
+        payload: { state: "failed", errorMessage: "provider quota exhausted" },
+      });
+    }),
+  );
+
+  it.effect("does not send file attachments through Pi's image field", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-file-attachment");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+
+      yield* adapter.sendTurn({
+        threadId,
+        input: "read the attached file path from the prompt",
+        attachments: [
+          {
+            type: "file",
+            id: "pi-file-attachment",
+            name: "notes.txt",
+            mimeType: "text/plain",
+            sizeBytes: 4,
+          },
+        ],
+      });
+
+      expect(fake.commands.findLast((command) => command.type === "prompt")).toEqual({
+        type: "prompt",
+        message: "read the attached file path from the prompt",
+      });
+      yield* adapter.stopSession(threadId);
+    }),
+  );
+
+  it.effect("ignores cumulative token totals while post-compaction usage is unknown", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      fake.setResponse(
+        "get_session_stats",
+        asResponse({
+          type: "response",
+          command: "get_session_stats",
+          success: true,
+          data: {
+            tokens: { input: 80_000, output: 20_000, cacheRead: 0, cacheWrite: 0, total: 100_000 },
+            contextUsage: { tokens: null, contextWindow: 200_000, percent: null },
+            toolCalls: 2,
+          },
+        }),
+      );
+      const threadId = ThreadId.make("pi-int-null-context-usage");
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "thread.metadata.updated",
+      );
+
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "after compaction", attachments: [] });
+      yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
+      yield* fake.pushEvent({ type: "session_info_changed", name: "done" } as AgentSessionEvent);
+
+      const events = yield* Fiber.join(collected.fiber).pipe(
+        Effect.flatMap(() => Ref.get(collected.store)),
+      );
+      expect(events.some((event) => event.type === "thread.token-usage.updated")).toBe(false);
+      yield* adapter.stopSession(threadId);
     }),
   );
 
@@ -538,6 +664,91 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       if (started && started.type === "item.started") {
         expect(started.payload.itemType).toBe("command_execution");
       }
+    }),
+  );
+
+  it.effect("clears Pi's queue, awaits abort, and closes an in-flight tool on interrupt", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-int-interrupt");
+      const store = yield* Ref.make<Array<ProviderRuntimeEvent>>([]);
+      const toolStarted = yield* Deferred.make<void>();
+      const fiber = yield* adapter.streamEvents.pipe(
+        Stream.filter((event) => event.threadId === threadId),
+        Stream.takeUntil((event) => event.type === "turn.completed"),
+        Stream.runForEach((event) =>
+          Ref.update(store, (events) => [...events, event]).pipe(
+            Effect.andThen(
+              event.type === "item.started"
+                ? Deferred.succeed(toolStarted, undefined).pipe(Effect.ignore)
+                : Effect.void,
+            ),
+          ),
+        ),
+        Effect.forkChild,
+      );
+
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const turn = yield* adapter.sendTurn({ threadId, input: "run forever", attachments: [] });
+      yield* fake.pushEvent({
+        type: "tool_execution_start",
+        toolCallId: "interrupt-tool",
+        toolName: "bash",
+        args: { command: "sleep 100" },
+      } as AgentSessionEvent);
+      yield* Deferred.await(toolStarted);
+
+      const commandCount = fake.commands.length;
+      yield* adapter.interruptTurn(threadId, TurnId.make("stale-turn"));
+      expect(fake.commands).toHaveLength(commandCount);
+      yield* adapter.interruptTurn(threadId, turn.turnId);
+
+      const events = yield* Fiber.join(fiber).pipe(Effect.flatMap(() => Ref.get(store)));
+      expect(fake.commands.slice(-2).map((command) => command.type)).toEqual([
+        "clear_queue",
+        "abort",
+      ]);
+      expect(
+        events.find(
+          (event) => event.type === "item.completed" && event.itemId === "interrupt-tool",
+        ),
+      ).toMatchObject({ payload: { status: "failed" } });
+      expect(events.find((event) => event.type === "turn.completed")).toMatchObject({
+        payload: { state: "interrupted" },
+      });
+    }),
+  );
+
+  it.effect("stops an older Pi session when its RPC cannot clear queued messages", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      fake.setResponse(
+        "clear_queue",
+        asResponse({
+          type: "response",
+          command: "clear_queue",
+          success: false,
+          error: "Unknown command: clear_queue",
+        }),
+      );
+      const threadId = ThreadId.make("pi-int-legacy-interrupt");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      const turn = yield* adapter.sendTurn({ threadId, input: "run forever", attachments: [] });
+
+      yield* adapter.interruptTurn(threadId, turn.turnId);
+
+      expect(yield* adapter.hasSession(threadId)).toBe(false);
+      expect(fake.commands.some((command) => command.type === "abort")).toBe(false);
     }),
   );
 
@@ -845,6 +1056,37 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
     }),
   );
 
+  it.effect("rejects a full-access session when the RPC startup handshake fails", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      fake.setResponse(
+        "get_state",
+        asResponse({
+          type: "response",
+          command: "get_state",
+          success: false,
+          error: "process unavailable",
+        }),
+      );
+      const threadId = ThreadId.make("pi-int-startup-handshake");
+
+      const result = yield* adapter
+        .startSession({
+          threadId,
+          provider: PI,
+          cwd: process.cwd(),
+          runtimeMode: "full-access",
+        })
+        .pipe(Effect.result);
+
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result)) {
+        expect(String(result.failure.message)).toContain("get_state startup handshake");
+      }
+      expect(yield* adapter.hasSession(threadId)).toBe(false);
+    }),
+  );
+
   it.effect("rejects startSession when the provider does not match", () =>
     Effect.gen(function* () {
       const { adapter } = yield* makePiAdapterForTest(enabledSettings());
@@ -858,6 +1100,63 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         })
         .pipe(Effect.result);
       expect(Result.isFailure(result)).toBe(true);
+    }),
+  );
+
+  it.effect("fails the active turn and emits session.exited before process scope teardown", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePiRpcTransport;
+      let processExit: Effect.Effect<void> | undefined;
+      const adapter = yield* makePiAdapter(enabledSettings(), {
+        makeTransport: (input) =>
+          Effect.sync(() => {
+            processExit = input.onExit;
+            return fake.transport;
+          }),
+      });
+      const threadId = ThreadId.make("pi-int-process-exit");
+      const store = yield* Ref.make<Array<ProviderRuntimeEvent>>([]);
+      const toolStarted = yield* Deferred.make<void>();
+      const fiber = yield* adapter.streamEvents.pipe(
+        Stream.filter((event) => event.threadId === threadId),
+        Stream.takeUntil((event) => event.type === "session.exited"),
+        Stream.runForEach((event) =>
+          Ref.update(store, (events) => [...events, event]).pipe(
+            Effect.andThen(
+              event.type === "item.started"
+                ? Deferred.succeed(toolStarted, undefined).pipe(Effect.ignore)
+                : Effect.void,
+            ),
+          ),
+        ),
+        Effect.forkChild,
+      );
+
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "run", attachments: [] });
+      yield* fake.pushEvent({
+        type: "tool_execution_start",
+        toolCallId: "exit-tool",
+        toolName: "bash",
+        args: { command: "sleep 100" },
+      } as AgentSessionEvent);
+      yield* Deferred.await(toolStarted);
+      yield* processExit!;
+
+      const events = yield* Fiber.join(fiber).pipe(Effect.flatMap(() => Ref.get(store)));
+      expect(events.find((event) => event.type === "item.completed")).toMatchObject({
+        payload: { status: "failed" },
+      });
+      expect(events.find((event) => event.type === "turn.completed")).toMatchObject({
+        payload: { state: "failed", errorMessage: "Pi process exited unexpectedly." },
+      });
+      expect(events.at(-1)?.type).toBe("session.exited");
+      expect(yield* adapter.hasSession(threadId)).toBe(false);
     }),
   );
 

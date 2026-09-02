@@ -6,6 +6,7 @@ import * as NodeReadline from "node:readline";
 const assistantText = process.env["PI_MOCK_ASSISTANT_TEXT"] ?? '{"title":"Mock title"}';
 const emitInvalidJson = process.env["PI_MOCK_EMIT_INVALID_JSON"] === "1";
 const lastTextFails = process.env["PI_MOCK_LAST_TEXT_FAILS"] === "1";
+const promptFails = process.env["PI_MOCK_PROMPT_FAILS"] === "1";
 
 const replyText = emitInvalidJson
   ? "Sure — here is the answer, with no JSON at all."
@@ -32,6 +33,25 @@ rl.on("line", (line: string) => {
     case "prompt":
     case "steer":
     case "follow_up": {
+      if (command.id !== undefined) {
+        write(
+          promptFails
+            ? {
+                type: "response",
+                id: command.id,
+                command: command.type,
+                success: false,
+                error: "mock prompt rejected",
+              }
+            : {
+                type: "response",
+                id: command.id,
+                command: command.type,
+                success: true,
+              },
+        );
+      }
+      if (promptFails) return;
       write({ type: "agent_start" });
       write({ type: "turn_start" });
       write({
@@ -42,6 +62,7 @@ rl.on("line", (line: string) => {
       write({ type: "message_end", message: {} });
       write({ type: "turn_end", message: {}, toolResults: [] });
       write({ type: "agent_end", messages: [], willRetry: false });
+      write({ type: "agent_settled" });
       return;
     }
     case "get_last_assistant_text": {
