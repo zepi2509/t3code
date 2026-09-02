@@ -147,6 +147,29 @@ jobs:
       - name: Align package versions
         run: node scripts/update-release-package-versions.ts "${{ needs.prepare.outputs.version }}"
 
+      - name: Setup Windows Rust target
+        if: matrix.id == 'windows-x64'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Spectre-mitigated MSVC libs
+        if: matrix.id == 'windows-x64'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installPath = & $vswhere -products * -latest -property installationPath
+          $setupExe = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+          $proc = Start-Process -FilePath $setupExe `
+            -ArgumentList "modify", "--installPath", "`"$installPath`"", "--add", `
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64.Spectre", "--quiet", "--norestart" `
+            -Wait -PassThru -NoNewWindow
+          if ($null -eq $proc -or $proc.ExitCode -ne 0) {
+            $code = if ($null -ne $proc) { $proc.ExitCode } else { 1 }
+            Write-Error "Visual Studio Installer failed with exit code $code"
+            exit $code
+          }
+
       - name: Download WSL node-pty prebuild
         if: matrix.platform == 'win'
         uses: actions/download-artifact@v7
