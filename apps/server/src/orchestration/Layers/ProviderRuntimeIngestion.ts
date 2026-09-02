@@ -1857,7 +1857,13 @@ const make = Effect.gen(function* () {
         }
 
         if (turnId) {
-          yield* clearAssistantSegmentStateForTurn(thread.id, turnId);
+          const state = yield* getAssistantSegmentStateForTurn(thread.id, turnId);
+          if (Option.isSome(state)) {
+            yield* setAssistantSegmentStateForTurn(thread.id, turnId, {
+              ...state.value,
+              activeMessageId: null,
+            });
+          }
         }
       }
 
