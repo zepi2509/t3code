@@ -499,6 +499,17 @@ describe("composerDraftStore file attachments", () => {
     expect(marker?.uploadEnvironmentId).toBeUndefined();
   });
 
+  it("does not let internal Pi state overwrite the prompt", () => {
+    const store = useComposerDraftStore.getState();
+    store.setPrompt(threadRef, "Keep my draft");
+    store.setPrompt(
+      threadRef,
+      '\u001b[0mPI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
+    );
+
+    expect(store.getComposerDraft(threadRef)?.prompt).toBe("Keep my draft");
+  });
+
   it("removes generic files when the composer is cleared", () => {
     const store = useComposerDraftStore.getState();
     store.addFiles(threadRef, [makeFile("file-clear")]);
