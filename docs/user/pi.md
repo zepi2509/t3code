@@ -7,11 +7,14 @@ Pi runs through its own `~/.pi/agent` configuration — the same setup the `pi` 
 
 ## Before You Start
 
-Install the Pi CLI and make sure it is on your `PATH`:
+Install Pi 0.84.4 or later and make sure it is on your `PATH`:
 
 ```bash
 pi --version
 ```
+
+T3 Code uses Pi's queue-clearing RPC when you interrupt a turn. With an older Pi version,
+T3 Code stops the session instead so queued work cannot continue in the background.
 
 Pi does not have a single `login` command like Codex or Claude. Instead, Pi talks to
 upstream model providers (for example Google, Anthropic, or xAI) using per-provider API
@@ -37,7 +40,8 @@ Require tool approval: on
 ```
 
 An empty (or `pi`) `Binary path` uses the `pi` binary from your `PATH`. Point it at an
-absolute path if you run a specific build.
+absolute path if you run a specific build. Automatic updates only update the detected Pi CLI
+package; an unrecognized custom binary must be updated manually.
 
 ## Where Pi Keeps Its Config
 

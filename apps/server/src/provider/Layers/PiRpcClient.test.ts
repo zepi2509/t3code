@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { AgentSessionEvent, ModelInfo, RpcResponse } from "@earendil-works/pi-coding-agent";
+import type { ModelInfo, RpcResponse } from "@earendil-works/pi-coding-agent";
 
 import {
   asPiThinkingLevel,
@@ -23,6 +23,7 @@ import {
   piModelSlug,
   piResponseHasCommand,
   piResponseSucceeded,
+  type PiAgentEvent,
   planPiModelSwitch,
   resolveForkTargetEntryId,
   resolvePiThinkingLevel,
@@ -31,7 +32,7 @@ import {
   tryParsePiJsonObject,
 } from "./PiRpcClient.ts";
 
-const asEvent = (value: unknown): AgentSessionEvent => value as AgentSessionEvent;
+const asEvent = (value: unknown): PiAgentEvent => value as PiAgentEvent;
 const asResponse = (value: unknown): RpcResponse => value as RpcResponse;
 const asModelInfo = (value: unknown): ModelInfo => value as ModelInfo;
 const modelSelectionWithThinking = (value: string | undefined) =>
