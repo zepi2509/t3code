@@ -24,6 +24,7 @@ import {
   type TurnId,
 } from "@t3tools/contracts";
 
+import { isPiSubagentAsyncEditorText } from "./piEditorText";
 import type {
   ChatMessage,
   ProposedPlan,
@@ -785,10 +786,6 @@ function stripAnsi(text: string): string {
   // Browser UI cannot render terminal formatting.
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\].*?\x07/g, "");
-}
-
-export function isPiSubagentAsyncEditorText(text: string): boolean {
-  return text.trimStart().startsWith("PI_SUBAGENT_ASYNC_JSON:");
 }
 
 export interface ProviderUIState {
