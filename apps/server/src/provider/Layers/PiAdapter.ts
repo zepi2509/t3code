@@ -82,6 +82,7 @@ const PI_MESSAGES_TIMEOUT_MS = 5_000;
 const PI_FORK_TIMEOUT_MS = 15_000;
 const PI_MODEL_OPTIONS_TIMEOUT_MS = 5_000;
 const PI_PROMPT_TIMEOUT_MS = 30_000;
+const PI_INTERRUPT_TIMEOUT_MS = 30_000;
 const PI_COMPACT_TIMEOUT_MS = 180_000;
 const PI_APPROVAL_TITLE_PREFIX = "[t3-tool-approval] ";
 const PI_SUBAGENT_ASYNC_EDITOR_PREFIX = "PI_SUBAGENT_ASYNC_JSON:";
@@ -126,6 +127,11 @@ interface PiTurnState {
   readonly turnId: TurnId;
   readonly startedAt: string;
   readonly items: Array<PiToolItem>;
+  readonly inFlightTools: Map<RuntimeItemId, PiToolItem>;
+  lastAssistantError: string | undefined;
+  completionOverride:
+    | { readonly state: "interrupted" | "cancelled"; readonly errorMessage: string }
+    | undefined;
 }
 
 interface PendingApproval {
@@ -160,6 +166,7 @@ interface PiSessionContext {
   agentActive: boolean;
   readonly turns: Array<{ id: TurnId; items: Array<PiToolItem> }>;
   readonly extensionCommands: Set<string>;
+  started: boolean;
   stopped: boolean;
   // slug the pi process is running; used to issue set_model only on change
   currentModel: string | undefined;
@@ -395,6 +402,36 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       context.turnState = undefined;
       context.turns.push({ id: turnState.turnId, items: [...turnState.items] });
 
+      for (const item of turnState.inFlightTools.values()) {
+        const detail = summarizePiToolArgs(item.args);
+        const args =
+          item.args && typeof item.args === "object"
+            ? (item.args as Record<string, unknown>)
+            : undefined;
+        const itemStamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          ...itemStamp,
+          provider: PROVIDER,
+          providerInstanceId: boundInstanceId,
+          threadId: context.session.threadId,
+          turnId: turnState.turnId,
+          itemId: item.id,
+          type: "item.completed",
+          payload: {
+            itemType: item.type,
+            title: item.toolName,
+            status: "failed",
+            ...(detail ? { detail } : {}),
+            data: {
+              toolName: item.toolName,
+              ...(args ? { input: args } : {}),
+              terminalState: state,
+            },
+          },
+        });
+      }
+      turnState.inFlightTools.clear();
+
       const updatedAt = yield* nowIso;
       const { activeTurnId: _activeTurnId, ...readySession } = context.session;
       context.session = { ...readySession, status: "ready", updatedAt };
@@ -418,7 +455,14 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     Effect.gen(function* () {
       const turnId = TurnId.make(yield* nextUuid);
       const startedAt = yield* nowIso;
-      context.turnState = { turnId, startedAt, items: [] };
+      context.turnState = {
+        turnId,
+        startedAt,
+        items: [],
+        inFlightTools: new Map(),
+        lastAssistantError: undefined,
+        completionOverride: undefined,
+      };
       context.session = {
         ...context.session,
         status: "running",
@@ -505,6 +549,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           stats?.["contextUsage"] && typeof stats["contextUsage"] === "object"
             ? (stats["contextUsage"] as Record<string, unknown>)
             : undefined;
+        // Pi deliberately reports null immediately after compaction: the
+        // cumulative session total is not a valid current-context fallback.
+        if (contextUsage?.["tokens"] === null) return;
         const usedTokens =
           typeof contextUsage?.["tokens"] === "number"
             ? contextUsage["tokens"]
@@ -590,6 +637,15 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           const message = event.message as unknown as Record<string, unknown>;
           const turnId = context.turnState?.turnId;
           if (message["role"] === "assistant") {
+            if (context.turnState) {
+              context.turnState.lastAssistantError =
+                message["stopReason"] === "error"
+                  ? typeof message["errorMessage"] === "string" &&
+                    message["errorMessage"].trim().length > 0
+                    ? message["errorMessage"].trim()
+                    : "Pi assistant failed."
+                  : undefined;
+            }
             const content = renderPiText(message["content"]);
             if (!turnId || !content?.trim()) return;
             yield* offerRuntimeEvent({
@@ -599,7 +655,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
               type: "item.completed",
               payload: {
                 itemType: "assistant_message",
-                status: "completed",
+                status: message["stopReason"] === "error" ? "failed" : "completed",
                 title: "Assistant message",
                 detail: content,
               },
@@ -664,12 +720,14 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             event.args && typeof event.args === "object"
               ? (event.args as Record<string, unknown>)
               : undefined;
-          context.turnState.items.push({
+          const item = {
             id: itemId,
             type: itemType,
             toolName: event.toolName,
             args: event.args,
-          });
+          };
+          context.turnState.items.push(item);
+          context.turnState.inFlightTools.set(itemId, item);
           yield* offerRuntimeEvent({
             ...base,
             turnId: context.turnState.turnId,
@@ -726,6 +784,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             storedItem?.args && typeof storedItem.args === "object"
               ? (storedItem.args as Record<string, unknown>)
               : undefined;
+          context.turnState.inFlightTools.delete(itemId);
           yield* offerRuntimeEvent({
             ...base,
             turnId: context.turnState.turnId,
@@ -768,7 +827,17 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
         case "agent_settled": {
           context.agentActive = false;
-          if (context.turnState) yield* completeTurn(context, "completed");
+          const turnState = context.turnState;
+          if (turnState) {
+            const override = turnState.completionOverride;
+            if (override) {
+              yield* completeTurn(context, override.state, override.errorMessage);
+            } else if (turnState.lastAssistantError) {
+              yield* completeTurn(context, "failed", turnState.lastAssistantError);
+            } else {
+              yield* completeTurn(context, "completed");
+            }
+          }
           yield* syncPiSessionState(context);
           return;
         }
@@ -861,12 +930,12 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         }
 
         case "auto_retry_end": {
-          if (!event.success && event.finalError) {
-            yield* offerRuntimeEvent({
-              ...base,
-              type: "runtime.error",
-              payload: { message: event.finalError, class: "provider_error", detail: event },
-            });
+          if (context.turnState) {
+            context.turnState.lastAssistantError = event.success
+              ? undefined
+              : event.finalError ||
+                context.turnState.lastAssistantError ||
+                "Pi exhausted automatic retries.";
           }
           return;
         }
@@ -1206,16 +1275,17 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     Effect.gen(function* () {
       if (context.stopped) return;
       context.stopped = true;
+      const exitKind = opts?.exitKind ?? "graceful";
+      const reason =
+        opts?.reason ??
+        (exitKind === "error" ? "Pi process exited unexpectedly." : "Session stopped");
 
       if (context.turnState) {
-        yield* completeTurn(context, "interrupted", "Session stopped.");
+        yield* completeTurn(context, exitKind === "error" ? "failed" : "interrupted", reason);
       }
 
       yield* cancelPendingExtensionRequests(context);
-
       if (context.notificationFiber) yield* Fiber.interrupt(context.notificationFiber);
-
-      yield* Effect.ignore(Scope.close(context.sessionScope, Exit.void));
 
       const updatedAt = yield* nowIso;
       const { activeTurnId: _activeTurnId, ...closedSession } = context.session;
@@ -1225,10 +1295,6 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       }
 
       if (opts?.emitExitEvent !== false) {
-        const exitKind = opts?.exitKind ?? "graceful";
-        const reason =
-          opts?.reason ??
-          (exitKind === "error" ? "Pi process exited unexpectedly." : "Session stopped");
         const stamp = yield* makeEventStamp();
         yield* offerRuntimeEvent({
           ...stamp,
@@ -1243,6 +1309,10 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           },
         });
       }
+
+      // Closing this scope can interrupt the fiber that observed the process
+      // exit, so all terminal events must already be queued.
+      yield* Effect.ignore(Scope.close(context.sessionScope, Exit.void));
     });
 
   const requireSession = (
@@ -1262,32 +1332,34 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
   const resolvePromptImages = (
     attachments: ProviderSendTurnInput["attachments"],
   ): Effect.Effect<ReadonlyArray<PiImageContent>, ProviderAdapterError> =>
-    Effect.forEach(attachments ?? [], (attachment) =>
-      Effect.gen(function* () {
-        const attachmentPath = resolveAttachmentPath({
-          attachmentsDir: serverConfig.attachmentsDir,
-          attachment,
-        });
-        if (!attachmentPath) {
-          return yield* new ProviderAdapterRequestError({
-            provider: PROVIDER,
-            method: "prompt",
-            detail: `Invalid attachment id '${attachment.id}'.`,
+    Effect.forEach(
+      (attachments ?? []).filter((attachment) => attachment.type === "image"),
+      (attachment) =>
+        Effect.gen(function* () {
+          const attachmentPath = resolveAttachmentPath({
+            attachmentsDir: serverConfig.attachmentsDir,
+            attachment,
           });
-        }
-        const bytes = yield* fileSystem.readFile(attachmentPath).pipe(
-          Effect.mapError(
-            (cause) =>
-              new ProviderAdapterRequestError({
-                provider: PROVIDER,
-                method: "prompt",
-                detail: `Failed to read attachment '${attachment.id}'.`,
-                cause,
-              }),
-          ),
-        );
-        return piImageContentFromBytes({ mimeType: attachment.mimeType, bytes });
-      }),
+          if (!attachmentPath) {
+            return yield* new ProviderAdapterRequestError({
+              provider: PROVIDER,
+              method: "prompt",
+              detail: `Invalid attachment id '${attachment.id}'.`,
+            });
+          }
+          const bytes = yield* fileSystem.readFile(attachmentPath).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapterRequestError({
+                  provider: PROVIDER,
+                  method: "prompt",
+                  detail: `Failed to read attachment '${attachment.id}'.`,
+                  cause,
+                }),
+            ),
+          );
+          return piImageContentFromBytes({ mimeType: attachment.mimeType, bytes });
+        }),
     );
 
   // switch only on change; fail closed (prompt not sent) on a bad slug or rejection
@@ -1408,7 +1480,10 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       onExit: Effect.suspend(() => {
         const live = sessions.get(threadId);
         if (live && live === context && !live.stopped && live.session.status !== "closed") {
-          return stopSessionInternal(live, { emitExitEvent: true, exitKind: "error" });
+          return stopSessionInternal(live, {
+            emitExitEvent: live.started,
+            exitKind: "error",
+          });
         }
         return Effect.void;
       }),
@@ -1451,6 +1526,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       agentActive: false,
       turns: [],
       extensionCommands: new Set(),
+      started: false,
       stopped: false,
       currentModel: modelSelection?.model,
       appliedThinkingLevel: thinkingLevel,
@@ -1472,6 +1548,14 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       `pi-get-state-${yield* nextUuid}`,
       PI_STATE_TIMEOUT_MS,
     );
+    if (!piResponseSucceeded(stateResponse, "get_state")) {
+      yield* stopSessionInternal(context, { emitExitEvent: false });
+      return yield* new ProviderAdapterProcessError({
+        provider: PROVIDER,
+        threadId,
+        detail: "Pi RPC process did not complete the get_state startup handshake.",
+      });
+    }
     const sessionFile = extractSessionFile(stateResponse);
     if (sessionFile !== undefined) {
       context.session = { ...context.session, resumeCursor: { sessionFile } };
@@ -1482,6 +1566,14 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       `pi-get-commands-${yield* nextUuid}`,
       PI_COMMANDS_TIMEOUT_MS,
     );
+    if (!piResponseSucceeded(commandsResponse, "get_commands")) {
+      yield* stopSessionInternal(context, { emitExitEvent: false });
+      return yield* new ProviderAdapterProcessError({
+        provider: PROVIDER,
+        threadId,
+        detail: "Pi RPC process did not complete the get_commands startup handshake.",
+      });
+    }
     updateDiscoveredCommands(context, commandsResponse);
 
     // fail closed unless the gate extension registered its sentinel command
@@ -1497,6 +1589,15 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       }
     }
 
+    if (context.stopped) {
+      return yield* new ProviderAdapterProcessError({
+        provider: PROVIDER,
+        threadId,
+        detail: "Pi RPC process exited during the startup handshake.",
+      });
+    }
+
+    context.started = true;
     const startedStamp = yield* makeEventStamp();
     yield* offerRuntimeEvent({
       ...startedStamp,
@@ -1545,6 +1646,13 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       payload: { state: "ready" },
     });
     yield* syncPiSessionState(context);
+    if (context.stopped) {
+      return yield* new ProviderAdapterProcessError({
+        provider: PROVIDER,
+        threadId,
+        detail: "Pi RPC process exited before startup completed.",
+      });
+    }
 
     return { ...context.session };
   });
@@ -1578,7 +1686,14 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     if (!context.turnState) {
       const turnId = TurnId.make(yield* nextUuid);
       const startedAt = yield* nowIso;
-      context.turnState = { turnId, startedAt, items: [] };
+      context.turnState = {
+        turnId,
+        startedAt,
+        items: [],
+        inFlightTools: new Map(),
+        lastAssistantError: undefined,
+        completionOverride: undefined,
+      };
       context.session = {
         ...context.session,
         status: "running",
@@ -1641,12 +1756,45 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
   });
 
   const interruptTurn: PiAdapterShape["interruptTurn"] = Effect.fn("interruptTurn")(
-    function* (threadId) {
+    function* (threadId, turnId) {
       const context = yield* requireSession(threadId);
-      yield* Effect.ignore(context.transport.writeCommand({ type: "abort" }));
-      // settle bridged requests so Pi isn't left blocked (matches Cursor)
+      const activeTurn = context.turnState;
+      if (!activeTurn || (turnId !== undefined && activeTurn.turnId !== turnId)) return;
+
+      const clearResponse = yield* context.transport.request(
+        { type: "clear_queue" },
+        `pi-clear-queue-${yield* nextUuid}`,
+        PI_INTERRUPT_TIMEOUT_MS,
+      );
+      if (!piResponseSucceeded(clearResponse, "clear_queue")) {
+        // Older Pi RPC versions cannot clear queued steering/follow-ups. Stop
+        // the process rather than let work continue after the user interrupted.
+        yield* stopSessionInternal(context, {
+          reason: "Pi could not clear queued messages; session stopped.",
+        });
+        return;
+      }
+
+      activeTurn.completionOverride = {
+        state: "interrupted",
+        errorMessage: "Turn interrupted.",
+      };
+      // Settle bridged requests before abort so Pi cannot stay blocked in an
+      // extension UI callback while abort waits for the agent to become idle.
       yield* cancelPendingExtensionRequests(context);
-      if (context.turnState) {
+      const abortResponse = yield* context.transport.request(
+        { type: "abort" },
+        `pi-abort-${yield* nextUuid}`,
+        PI_INTERRUPT_TIMEOUT_MS,
+      );
+      if (!piResponseSucceeded(abortResponse, "abort")) {
+        return yield* new ProviderAdapterRequestError({
+          provider: PROVIDER,
+          method: "abort",
+          detail: "Pi did not acknowledge the abort request.",
+        });
+      }
+      if (context.turnState?.turnId === activeTurn.turnId) {
         yield* completeTurn(context, "interrupted", "Turn interrupted.");
       }
     },
