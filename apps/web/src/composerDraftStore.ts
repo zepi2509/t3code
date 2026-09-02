@@ -72,6 +72,7 @@ import { persist, type PersistStorage, type StorageValue } from "zustand/middlew
 import { useShallow } from "zustand/react/shallow";
 import { createDeferredStorage, createMemoryStorage } from "./lib/storage";
 import { getDefaultServerModel } from "./providerModels";
+import { isPiSubagentAsyncEditorText } from "./piEditorText";
 import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
 import { UnifiedSettings } from "@t3tools/contracts/settings";
 import { ReviewCommentContextSchema, type ReviewCommentContext } from "./reviewCommentContext";
@@ -2440,11 +2441,14 @@ function toHydratedThreadDraft(
 
   return {
     // Files predating inline references get a chip appended; images stay shelf-only.
-    prompt: ensureInlineContextReferences(persistedDraft.prompt, [
-      ...(persistedDraft.reviewComments ?? []).map(reviewCommentContextReference),
-      ...(persistedDraft.previewAnnotations ?? []).map(previewAnnotationContextReference),
-      ...files.map(fileContextReference),
-    ]),
+    prompt: ensureInlineContextReferences(
+      isPiSubagentAsyncEditorText(persistedDraft.prompt) ? "" : persistedDraft.prompt,
+      [
+        ...(persistedDraft.reviewComments ?? []).map(reviewCommentContextReference),
+        ...(persistedDraft.previewAnnotations ?? []).map(previewAnnotationContextReference),
+        ...files.map(fileContextReference),
+      ],
+    ),
     images: hydrateImagesFromPersisted(persistedDraft.attachments),
     files,
     nonPersistedImageIds: [],
@@ -2981,6 +2985,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           });
         },
         setPrompt: (threadRef, prompt) => {
+          if (isPiSubagentAsyncEditorText(prompt)) return;
           const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
           if (threadKey.length === 0) {
             return;
