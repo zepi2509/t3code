@@ -222,22 +222,27 @@ export function summarizePiToolArgs(args: unknown): string | undefined {
   }
 }
 
-export function renderPiValue(value: unknown): string | undefined {
+function renderPiText(value: unknown): string | undefined {
   if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return undefined;
+  const text = value.flatMap((part) =>
+    part &&
+    typeof part === "object" &&
+    (part as Record<string, unknown>)["type"] === "text" &&
+    typeof (part as Record<string, unknown>)["text"] === "string"
+      ? [(part as Record<string, string>)["text"]]
+      : [],
+  );
+  return text.length > 0 ? text.join("\n") : undefined;
+}
+
+export function renderPiValue(value: unknown): string | undefined {
   const content =
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)["content"]
       : value;
-  if (Array.isArray(content)) {
-    const text = content.flatMap((part) =>
-      part &&
-      typeof part === "object" &&
-      typeof (part as Record<string, unknown>)["text"] === "string"
-        ? [(part as Record<string, string>)["text"]]
-        : [],
-    );
-    if (text.length > 0) return text.join("\n");
-  }
+  const text = renderPiText(content);
+  if (text !== undefined) return text;
   if (value === undefined) return undefined;
   try {
     return JSON.stringify(value, null, 2);
@@ -583,11 +588,10 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
         case "message_end": {
           const message = event.message as unknown as Record<string, unknown>;
-          const content = renderPiValue(message["content"]);
-          if (!content?.trim()) return;
           const turnId = context.turnState?.turnId;
           if (message["role"] === "assistant") {
-            if (!turnId) return;
+            const content = renderPiText(message["content"]);
+            if (!turnId || !content?.trim()) return;
             yield* offerRuntimeEvent({
               ...base,
               turnId,
@@ -603,6 +607,8 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
             return;
           }
           if (message["role"] !== "custom" || message["display"] === false) return;
+          const content = renderPiValue(message["content"]);
+          if (!content?.trim()) return;
           yield* offerRuntimeEvent({
             ...base,
             ...(turnId ? { turnId } : {}),
