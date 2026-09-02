@@ -2168,6 +2168,110 @@ describe("ProviderRuntimeIngestion", () => {
     ).toBe(false);
   });
 
+  it("keeps Pi assistant messages separated around tool calls", async () => {
+    const harness = await createHarness();
+    const turnId = asTurnId("turn-pi-message-segments");
+
+    harness.emit({
+      type: "turn.started",
+      eventId: asEventId("evt-turn-started-pi-message-segments"),
+      provider: ProviderDriverKind.make("pi"),
+      createdAt: "2026-03-28T06:30:00.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId,
+    });
+    await waitForThread(
+      harness.readModel,
+      (thread) => thread.session?.status === "running" && thread.session.activeTurnId === turnId,
+    );
+
+    harness.emit({
+      type: "content.delta",
+      eventId: asEventId("evt-pi-message-segment-first-delta"),
+      provider: ProviderDriverKind.make("pi"),
+      createdAt: "2026-03-28T06:30:01.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId,
+      payload: { streamKind: "assistant_text", delta: "Before tool" },
+    });
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-pi-message-segment-first-completed"),
+      provider: ProviderDriverKind.make("pi"),
+      createdAt: "2026-03-28T06:30:02.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId,
+      itemId: asItemId("pi-message-1"),
+      payload: {
+        itemType: "assistant_message",
+        status: "completed",
+        detail: "Before tool",
+      },
+    });
+    harness.emit({
+      type: "item.started",
+      eventId: asEventId("evt-pi-tool-between-messages"),
+      provider: ProviderDriverKind.make("pi"),
+      createdAt: "2026-03-28T06:30:03.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId,
+      itemId: asItemId("pi-tool-between-messages"),
+      payload: {
+        itemType: "command_execution",
+        status: "inProgress",
+        title: "bash",
+        detail: "pwd",
+      },
+    });
+    harness.emit({
+      type: "content.delta",
+      eventId: asEventId("evt-pi-message-segment-second-delta"),
+      provider: ProviderDriverKind.make("pi"),
+      createdAt: "2026-03-28T06:30:04.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId,
+      payload: { streamKind: "assistant_text", delta: "After tool" },
+    });
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-pi-message-segment-second-completed"),
+      provider: ProviderDriverKind.make("pi"),
+      createdAt: "2026-03-28T06:30:05.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId,
+      itemId: asItemId("pi-message-2"),
+      payload: {
+        itemType: "assistant_message",
+        status: "completed",
+        detail: "After tool",
+      },
+    });
+
+    const thread = await waitForThread(harness.readModel, (entry) =>
+      entry.messages.some(
+        (message: ProviderRuntimeTestMessage) =>
+          message.id === `assistant:${turnId}:segment:1` &&
+          !message.streaming &&
+          message.text === "After tool",
+      ),
+    );
+    const firstMessage = thread.messages.find(
+      (message: ProviderRuntimeTestMessage) => message.id === `assistant:${turnId}`,
+    );
+    const secondMessage = thread.messages.find(
+      (message: ProviderRuntimeTestMessage) => message.id === `assistant:${turnId}:segment:1`,
+    );
+    const toolActivity = thread.activities.find(
+      (activity: ProviderRuntimeTestActivity) => activity.id === "evt-pi-tool-between-messages",
+    );
+
+    expect(firstMessage?.text).toBe("Before tool");
+    expect(firstMessage?.streaming).toBe(false);
+    expect(toolActivity?.kind).toBe("tool.started");
+    expect(firstMessage!.createdAt < toolActivity!.createdAt).toBe(true);
+    expect(toolActivity!.createdAt < secondMessage!.createdAt).toBe(true);
+  });
+
   it("starts a new buffered assistant message segment after approval and completes without duplication", async () => {
     const harness = await createHarness();
     const startedAt = "2026-03-28T06:07:00.000Z";
