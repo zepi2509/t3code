@@ -57,6 +57,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import { createDebouncedStorage, createMemoryStorage } from "./lib/storage";
 import { getDefaultServerModel } from "./providerModels";
+import { isPiSubagentAsyncEditorText } from "./piEditorText";
 import { UnifiedSettings } from "@t3tools/contracts/settings";
 import { ReviewCommentContextSchema, type ReviewCommentContext } from "./reviewCommentContext";
 const isRuntimeMode = Schema.is(RuntimeMode);
@@ -2356,7 +2357,7 @@ function toHydratedThreadDraft(
   const activeProvider = normalizeProviderInstanceId(persistedDraft.activeProvider) ?? null;
 
   return {
-    prompt: persistedDraft.prompt,
+    prompt: isPiSubagentAsyncEditorText(persistedDraft.prompt) ? "" : persistedDraft.prompt,
     images: hydrateImagesFromPersisted(persistedDraft.attachments),
     files:
       persistedDraft.files?.map((file) => ({
@@ -2868,6 +2869,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           });
         },
         setPrompt: (threadRef, prompt) => {
+          if (isPiSubagentAsyncEditorText(prompt)) return;
           const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
           if (threadKey.length === 0) {
             return;
