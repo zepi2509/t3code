@@ -107,7 +107,7 @@ describe("deriveProviderUIState", () => {
         kind: "provider.ui",
         payload: {
           method: "set_editor_text",
-          text: ' \nPI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
+          text: '\u001b[0mPI_SUBAGENT_ASYNC_JSON:{"kind":"pi-subagents.async-status-snapshot"}',
         },
       }),
     ]);
