@@ -50,7 +50,6 @@ export function tryParsePiJsonObject(text: string): Record<string, unknown> | nu
     return null;
   }
   try {
-    // eslint-disable-next-line no-restricted-syntax -- boundary parse of an untrusted JSONL line
     const value = JSON.parse(trimmed) as unknown; // @effect-diagnostics-ignore preferSchemaOverJson
     return value !== null && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
