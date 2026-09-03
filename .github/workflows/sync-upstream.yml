@@ -37,7 +37,7 @@ jobs:
             git commit --amend --no-edit
           fi
           sync_ref="$(git rev-parse HEAD)"
-          if git diff --quiet "$base_ref" -- pnpm-lock.yaml pnpm-workspace.yaml; then
+          if git diff --quiet "$base_ref" -- package.json ':(glob)**/package.json' pnpm-lock.yaml pnpm-workspace.yaml; then
             echo "pnpm_changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "pnpm_changed=true" >> "$GITHUB_OUTPUT"
