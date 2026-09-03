@@ -44,6 +44,17 @@ jobs:
           fi
           echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
 
+      - name: Setup Vite+
+        if: steps.sync.outputs.pnpm_changed == 'true'
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          run-install: false
+
+      - name: Verify pnpm lockfile
+        if: steps.sync.outputs.pnpm_changed == 'true'
+        run: vp install --lockfile-only --frozen-lockfile --ignore-scripts
+
       - name: Install Nix
         if: steps.sync.outputs.pnpm_changed == 'true'
         uses: DeterminateSystems/nix-installer-action@v21
