@@ -133,6 +133,7 @@ it.layer(NodeServices.layer)("checkPiProviderStatus", (it) => {
       );
       expect(snapshot.status).toBe("ready");
       expect(snapshot.auth.status).toBe("authenticated");
+      expect(snapshot.slashCommands.map((command) => command.name)).toContain("compact");
     }),
   );
 

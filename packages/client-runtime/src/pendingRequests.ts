@@ -69,8 +69,15 @@ function parseQuestions(value: unknown): UserInputQuestion[] {
   return value.flatMap((question) => {
     if (!Predicate.isObject(question) || !Array.isArray(question.options)) return [];
     const options = question.options.filter(isQuestionOption);
-    if (options.length === 0 && question.allowCustomAnswer === false) return [];
+    if (
+      options.length === 0 &&
+      question.allowCustomAnswer === false &&
+      question.inputKind !== "input" &&
+      question.inputKind !== "editor"
+    )
+      return [];
     const parsed = decodeQuestion({
+      ...question,
       id: question.id,
       header: question.header,
       question: question.question,
