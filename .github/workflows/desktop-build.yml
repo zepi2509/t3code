@@ -177,11 +177,11 @@ jobs:
           name: wsl-node-pty-x64
           path: wsl-prebuild
 
-      - name: Install ImageMagick
+      - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y imagemagick
+          sudo apt-get install -y imagemagick libsecret-1-dev pkg-config
 
       - name: Install Intel macOS Rust target
         if: matrix.id == 'macos-x64'
