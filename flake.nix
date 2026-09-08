@@ -39,7 +39,8 @@
           '';
           nativeBuildInputs =
             builtins.filter (input: lib.getName input != "pnpm") previous.nativeBuildInputs
-            ++ [pkgs.pnpm_11];
+            ++ [pkgs.pnpm_11 pkgs.pkg-config];
+          buildInputs = (previous.buildInputs or []) ++ [pkgs.libsecret];
           pnpmDeps = pkgs.fetchPnpmDeps {
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
