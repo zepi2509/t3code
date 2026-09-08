@@ -2031,6 +2031,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     sendTurn,
     interruptTurn,
     compactThread,
+    compaction: { type: "native", start: compactThread },
     readThread,
     rollbackThread,
     respondToRequest,
