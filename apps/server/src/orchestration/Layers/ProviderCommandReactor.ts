@@ -1728,11 +1728,13 @@ const make = Effect.gen(function* () {
         ),
       );
     yield* appendActivity("info", "Compacting context");
-    yield* providerService.compactThread!({ threadId: event.payload.threadId }).pipe(
-      Effect.catchCause((cause) =>
-        appendActivity("error", "Context compaction failed", Cause.pretty(cause)),
-      ),
-    );
+    yield* providerService
+      .compactThread(event.payload.threadId)
+      .pipe(
+        Effect.catchCause((cause) =>
+          appendActivity("error", "Context compaction failed", Cause.pretty(cause)),
+        ),
+      );
   });
 
   const processDomainEvent = Effect.fn("processDomainEvent")(function* (

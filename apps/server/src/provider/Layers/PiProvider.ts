@@ -16,7 +16,7 @@ import { ChildProcess } from "effect/unstable/process";
 import {
   buildServerProvider,
   DEFAULT_TIMEOUT_MS,
-  detailFromResult,
+  COMPACT_SLASH_COMMAND,
   isCommandMissingCause,
   parseGenericCliVersion,
   providerModelsFromSettings,
@@ -224,7 +224,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   const parsedVersion = parseGenericCliVersion(`${version.stdout}\n${version.stderr}`);
 
   if (version.code !== 0) {
-    const detail = detailFromResult(version);
+    const detail = version.stderr.trim() || version.stdout.trim() || undefined;
     return buildServerProvider({
       presentation: PI_PRESENTATION,
       enabled: piSettings.enabled,
@@ -251,7 +251,10 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
     enabled: piSettings.enabled,
     checkedAt,
     models,
-    slashCommands: discovered.slashCommands,
+    slashCommands: [
+      COMPACT_SLASH_COMMAND,
+      ...discovered.slashCommands.filter((command) => command.name !== "compact"),
+    ],
     skills: discovered.skills,
     supportsManualCompaction: true,
     probe: {
