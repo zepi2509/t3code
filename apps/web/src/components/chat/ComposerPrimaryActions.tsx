@@ -54,7 +54,7 @@ export function midTurnPrimaryDeliveryMode(input: {
   return input.supportsFollowUp && (input.ctrlKey || input.metaKey) ? "follow-up" : "steer";
 }
 
-export const formatPendingPrimaryActionLabel = (input: {
+const formatPendingPrimaryActionLabel = (input: {
   compact: boolean;
   isLastQuestion: boolean;
   isResponding: boolean;

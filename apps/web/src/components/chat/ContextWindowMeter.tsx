@@ -15,9 +15,6 @@ function formatPercentage(value: number | null): string | null {
   return `${Math.round(value)}%`;
 }
 
-export const canCompactContext = (supported: boolean, hasUsage: boolean): boolean =>
-  supported && hasUsage;
-
 export function ContextWindowMeter(props: {
   usage: ContextWindowSnapshot;
   modelDisplayName?: string | null;
