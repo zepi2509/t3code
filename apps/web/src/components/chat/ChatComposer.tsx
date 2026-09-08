@@ -1901,11 +1901,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     () => resolveContextWindowModelDisplayName(activeThreadModelSelection, modelOptionsByInstance),
     [activeThreadModelSelection, modelOptionsByInstance],
   );
-  const compactThread = useAtomCommand(threadEnvironment.compact, "context compaction");
-  const handleCompact = useCallback(() => {
-    if (!activeThreadId) return;
-    void compactThread({ environmentId, input: { threadId: activeThreadId } });
-  }, [activeThreadId, compactThread, environmentId]);
 
   // ------------------------------------------------------------------
   // Composer-local state
