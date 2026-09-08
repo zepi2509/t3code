@@ -9,7 +9,6 @@ const stageArtworkState = vi.hoisted(() => ({
 
 import {
   ComposerPrimaryActions,
-  formatPendingPrimaryActionLabel,
   MID_TURN_DELIVERY_ACTIONS,
   midTurnPrimaryDeliveryMode,
 } from "./ComposerPrimaryActions";
