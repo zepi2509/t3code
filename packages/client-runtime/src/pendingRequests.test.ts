@@ -303,6 +303,32 @@ describe("pending questions", () => {
     expect(derivePendingRequests([native]).userInputs[0]?.dismissible).toBe(false);
   });
 
+  it.each(["input", "editor"])("preserves Pi %s prompt metadata without options", (inputKind) => {
+    const question = {
+      id: "pi-input",
+      header: "Pi",
+      question: "Enter a value",
+      options: [],
+      multiSelect: false,
+      allowCustomAnswer: false,
+      inputKind,
+      title: "Title",
+      message: "Message",
+      placeholder: "Value",
+      prefill: "Existing value",
+      multiline: true,
+      timeoutMs: 1000,
+    };
+    const state = derivePendingRequests([
+      makeActivity({
+        kind: "user-input.requested",
+        payload: { requestId: "pi-request", questions: [question] },
+      }),
+    ]);
+    expect(state.userInputs[0]?.questions).toEqual([question]);
+    expect(state.userInputs[0]?.dismissible).toBe(false);
+  });
+
   it("preserves native choice values and the custom-answer restriction", () => {
     const question = {
       id: "interaction-result",
