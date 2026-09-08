@@ -388,7 +388,9 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         (event) => event.type === "thread.state.changed",
       );
 
-      yield* adapter.compactThread!(threadId);
+      const compaction = adapter.compaction;
+      if (compaction?.type !== "native") throw new Error("Pi must support native compaction");
+      yield* compaction.start(threadId);
       yield* fake.pushEvent({ type: "compaction_start", reason: "manual" } as AgentSessionEvent);
       yield* fake.pushEvent({
         type: "compaction_end",
