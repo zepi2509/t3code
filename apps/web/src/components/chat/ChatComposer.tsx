@@ -250,7 +250,7 @@ import { type ComposerCommandItem, ComposerCommandMenu } from "./ComposerCommand
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import { ComposerImageThumbnail } from "./ComposerImageThumbnail";
-import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
+import { ComposerPrimaryActions, midTurnPrimaryDeliveryMode } from "./ComposerPrimaryActions";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
@@ -1166,6 +1166,8 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
     isComplete: boolean;
   } | null;
   isRunning: boolean;
+  supportsSteer: boolean;
+  supportsFollowUp: boolean;
   showPlanFollowUpPrompt: boolean;
   promptHasText: boolean;
   isSendBusy: boolean;
@@ -1176,6 +1178,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   preserveComposerFocusOnPointerDown?: boolean;
   onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
+  onSend: (deliveryMode: "steer" | "follow-up") => void;
   onImplementPlanInNewThread: () => void;
   onCompactContext?: (() => void) | undefined;
   compactDisabled: boolean;
@@ -1198,6 +1201,8 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         compact={props.compact}
         pendingAction={props.pendingAction}
         isRunning={props.isRunning}
+        supportsSteer={props.supportsSteer}
+        supportsFollowUp={props.supportsFollowUp}
         showPlanFollowUpPrompt={props.showPlanFollowUpPrompt}
         promptHasText={props.promptHasText}
         isSendBusy={props.isSendBusy}
@@ -1209,6 +1214,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         preserveComposerFocusOnPointerDown={props.preserveComposerFocusOnPointerDown ?? false}
         onPreviousPendingQuestion={props.onPreviousPendingQuestion}
         onInterrupt={props.onInterrupt}
+        onSend={props.onSend}
         onImplementPlanInNewThread={props.onImplementPlanInNewThread}
       />
     </>
@@ -1342,6 +1348,8 @@ export interface ChatComposerProps {
       id: string;
       multiSelect?: boolean | undefined;
       allowCustomAnswer?: boolean | undefined;
+      placeholder?: string | undefined;
+      multiline?: boolean | undefined;
     } | null;
   } | null;
   activePendingResolvedAnswers: Record<string, unknown> | null;
@@ -1409,7 +1417,11 @@ export interface ChatComposerProps {
 
   // Callbacks
   onCompactContext: () => void;
-  onSend: (e?: { preventDefault: () => void }, intent?: ComposerSubmissionIntent) => void;
+  onSend: (
+    e?: { preventDefault: () => void },
+    intent?: ComposerSubmissionIntent,
+    deliveryMode?: "steer" | "follow-up",
+  ) => void;
   onInterrupt: () => void;
   onImplementPlanInNewThread: () => void;
   onRespondToApproval: (
@@ -1419,6 +1431,7 @@ export interface ChatComposerProps {
   onSelectActivePendingUserInputOption: (questionId: string, optionValue: string) => void;
   onAdvanceActivePendingUserInput: () => void;
   onDismissActivePendingUserInput: (requestId: ApprovalRequestId) => void;
+  onCancelActivePendingUserInput: (questionId: string) => void;
   onPreviousActivePendingUserInputQuestion: () => void;
   onChangeActivePendingUserInputCustomAnswer: (
     questionId: string,
@@ -1532,6 +1545,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onSelectActivePendingUserInputOption,
     onAdvanceActivePendingUserInput,
     onDismissActivePendingUserInput,
+    onCancelActivePendingUserInput,
     onPreviousActivePendingUserInputQuestion,
     onChangeActivePendingUserInputCustomAnswer,
     onProviderModelSelect,
@@ -3746,7 +3760,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   ]);
 
   const submitComposer = useCallback(
-    (event?: { preventDefault: () => void }, intent: ComposerSubmissionIntent = "foreground") => {
+    (
+      event?: { preventDefault: () => void },
+      intent: ComposerSubmissionIntent = "foreground",
+      deliveryMode?: "steer" | "follow-up",
+    ) => {
       if (noProviderAvailable || isSendDisabled) {
         event?.preventDefault();
         return;
@@ -3786,7 +3804,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           // ChatView reports its final composed-input preflight through the
           // composer handle before its first asynchronous send step.
           providerInputRejectedRef.current = false;
-          onSend(sendEvent, intent);
+          onSend(
+            sendEvent,
+            intent,
+            deliveryMode ??
+              (selectedProvider === "pi" && phase === "running" ? "steer" : undefined),
+          );
           return !providerInputRejectedRef.current;
         },
       });
@@ -3804,6 +3827,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       isSendDisabled,
       noProviderAvailable,
       onSend,
+      phase,
+      selectedProvider,
       promptRef,
       shouldBlurMobileComposerOnSubmit,
     ],
@@ -3834,6 +3859,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   }, [
     activePendingApproval,
     activeThreadId,
+    attachmentTargetKey,
     compactDisabled,
     isConnecting,
     isSendBusy,
@@ -3991,7 +4017,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           })
         : null;
     if (submissionIntent) {
-      submitComposer(undefined, submissionIntent);
+      submitComposer(
+        undefined,
+        submissionIntent,
+        selectedProvider === "pi" && phase === "running"
+          ? midTurnPrimaryDeliveryMode({
+              ctrlKey: event.ctrlKey,
+              metaKey: event.metaKey,
+              supportsFollowUp: true,
+            })
+          : undefined,
+      );
       return true;
     }
     // Native task splitting preserves marks and chips on both sides of the caret.
@@ -6876,6 +6912,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       compact
                       pendingAction={pendingPrimaryAction}
                       isRunning={false}
+                      supportsSteer={false}
+                      supportsFollowUp={false}
                       showPlanFollowUpPrompt={false}
                       promptHasText={false}
                       isSendBusy={isSendBusy}
@@ -6891,6 +6929,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       preserveComposerFocusOnPointerDown
                       onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                       onInterrupt={handleInterruptPrimaryAction}
+                      onSend={(deliveryMode) =>
+                        submitComposer(undefined, "foreground", deliveryMode)
+                      }
                       onImplementPlanInNewThread={handleImplementPlanInNewThreadPrimaryAction}
                     />
                   </div>
@@ -6983,6 +7024,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     activeThreadModelDisplayName={activeThreadModelDisplayName}
                     pendingAction={pendingPrimaryAction}
                     isRunning={phase === "running"}
+                    supportsSteer={selectedProvider === "pi"}
+                    supportsFollowUp={selectedProvider === "pi"}
                     showPlanFollowUpPrompt={
                       pendingUserInputs.length === 0 && showPlanFollowUpPrompt
                     }
@@ -7000,6 +7043,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     preserveComposerFocusOnPointerDown={isMobileViewport || isComposerResting}
                     onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                     onInterrupt={handleInterruptPrimaryAction}
+                    onSend={(deliveryMode) => submitComposer(undefined, "foreground", deliveryMode)}
                     onImplementPlanInNewThread={handleImplementPlanInNewThreadPrimaryAction}
                     compactDisabled={
                       compactDisabled || noProviderAvailable || isSendBusy || isConnecting
