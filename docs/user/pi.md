@@ -71,6 +71,21 @@ If discovery fails or times out, T3 Code falls back to your custom models only. 
 models with the Pi CLI (`pi config`) or by editing `~/.pi/agent/models.json`, then refresh
 provider status in Settings.
 
+## Sending While Pi Is Working
+
+Choose **Steer** to redirect the current turn, or **Queue** to send a follow-up after Pi
+finishes its current work. Both choices are available on web, desktop, and mobile. Mobile
+keeps the chosen delivery mode with queued messages through reconnects and app restarts.
+
+Use `/compact` in an existing, idle conversation to summarize older context before
+continuing. Stop the session if you need to cancel compaction.
+
+## Project Skills and Commands
+
+The command menu discovers Pi skills and commands for the selected project's working
+directory, including worktrees. Your global Pi resources remain available alongside the
+project's resources. Pi's own project-trust settings still determine which resources load.
+
 ## How Tool Approval Works
 
 Pi has no built-in per-tool approval prompt, so T3 Code adds one with a small bundled Pi
