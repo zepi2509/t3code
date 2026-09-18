@@ -1037,6 +1037,44 @@ describe("ProviderCommandReactor", () => {
     }),
   );
 
+  effectIt.effect("routes the legacy compact command through guarded, correlated turns", () =>
+    Effect.gen(function* () {
+      const harness = yield* Effect.promise(() => createHarness());
+      const events = yield* harness.engine.subscribeDomainEvents;
+      yield* harness.engine.dispatch({
+        type: "thread.compact",
+        commandId: CommandId.make("cmd-direct-compact"),
+        threadId: ThreadId.make("thread-1"),
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      yield* events.pipe(
+        Stream.filter(
+          (event) =>
+            event.type === "thread.activity-appended" &&
+            event.payload.activity.kind === "provider.turn.start.failed",
+        ),
+        Stream.runHead,
+      );
+      yield* Effect.promise(() => harness.drain());
+      expect(harness.compactThread).not.toHaveBeenCalled();
+      expect(harness.sendTurn).not.toHaveBeenCalled();
+      const thread = (yield* Effect.promise(() => harness.readModel())).threads[0];
+      expect(thread?.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "compact:cmd-direct-compact", text: "/compact" }),
+        ]),
+      );
+      expect(thread?.activities).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "provider.turn.start.failed",
+            payload: expect.objectContaining({ requestId: "compact:cmd-direct-compact" }),
+          }),
+        ]),
+      );
+    }).pipe(Effect.scoped),
+  );
+
   effectIt.effect.each(["resume", "stop before resume", "stop after send"])(
     "queues messages until compaction restores the session (%s)",
     (scenario) =>

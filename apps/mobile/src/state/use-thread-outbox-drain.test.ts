@@ -279,11 +279,14 @@ describe("thread outbox attachment preparation", () => {
   });
 
   it("uses the known next revision after persisting uploaded references", async () => {
-    const message = queuedMessage({
-      messageId: "message-new-upload-revision",
-      text: "upload this file",
-      fileUri: "file:///documents/t3-composer-attachments/new.pdf",
-    });
+    const message = {
+      ...queuedMessage({
+        messageId: "message-new-upload-revision",
+        text: "upload this file",
+        fileUri: "file:///documents/t3-composer-attachments/new.pdf",
+      }),
+      deliveryMode: "follow-up" as const,
+    };
     const uploadedAttachments = message.attachments.map((attachment) =>
       attachment.type === "file"
         ? {
@@ -309,7 +312,7 @@ describe("thread outbox attachment preparation", () => {
 
     expect(result).toMatchObject({
       status: "ready",
-      persistedMessage: { attachments: uploadedAttachments },
+      persistedMessage: { attachments: uploadedAttachments, deliveryMode: "follow-up" },
       deliveryRevision: revision + 1,
     });
     expect(harness.manager.revisionOf(message.messageId)).toBe(revision + 1);
