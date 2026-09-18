@@ -22,7 +22,7 @@ const rl = NodeReadline.createInterface({ input: process.stdin });
 rl.on("line", (line: string) => {
   const trimmed = line.trim();
   if (!trimmed) return;
-  let command: { type?: string; id?: string };
+  let command: { type?: string; id?: string; message?: string };
   try {
     command = JSON.parse(trimmed) as { type?: string; id?: string };
   } catch {
@@ -33,9 +33,12 @@ rl.on("line", (line: string) => {
     case "prompt":
     case "steer":
     case "follow_up": {
+      const expectedFragments: string[] = JSON.parse(process.env["PI_MOCK_EXPECT_PROMPT"] ?? "[]");
+      const rejected =
+        promptFails || expectedFragments.some((part) => !command.message?.includes(part));
       if (command.id !== undefined) {
         write(
-          promptFails
+          rejected
             ? {
                 type: "response",
                 id: command.id,
@@ -51,7 +54,7 @@ rl.on("line", (line: string) => {
               },
         );
       }
-      if (promptFails) return;
+      if (rejected) return;
       write({ type: "agent_start" });
       write({ type: "turn_start" });
       write({
