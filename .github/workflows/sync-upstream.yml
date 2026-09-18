@@ -27,6 +27,7 @@ jobs:
         name: Rebase onto upstream main
         run: |
           base_ref="$(git rev-parse HEAD)"
+          echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git remote add upstream https://github.com/pingdotgg/t3code.git
@@ -64,7 +65,7 @@ jobs:
         run: nix build .#unwrapped .#server --no-link --show-trace
 
       - name: Push synced main
-        run: git push --force-with-lease origin HEAD:main
+        run: git push --force-with-lease=refs/heads/main:${{ steps.sync.outputs.base_ref }} origin HEAD:main
 
       - id: release
         name: Find latest upstream release
