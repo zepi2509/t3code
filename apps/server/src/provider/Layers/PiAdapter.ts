@@ -23,6 +23,7 @@ import {
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
@@ -72,11 +73,18 @@ import {
   type RpcExtensionUIResponse,
 } from "./PiRpcClient.ts";
 
+import {
+  completePiTurnUsage,
+  normalizePiMessageUsage,
+  type PiMessageUsage,
+} from "./PiTurnUsage.ts";
+
 const PROVIDER = ProviderDriverKind.make("pi");
 export const buildPiCompactCommand = () => ({ type: "compact" as const });
 
 const PI_STATE_TIMEOUT_MS = 5_000;
 const PI_COMMANDS_TIMEOUT_MS = 5_000;
+const PI_STARTUP_TIMEOUT_MS = 30_000;
 const PI_MESSAGES_TIMEOUT_MS = 5_000;
 // fork/new_session rebinds to a new session file — give it more headroom
 const PI_FORK_TIMEOUT_MS = 15_000;
@@ -128,6 +136,7 @@ interface PiTurnState {
   readonly startedAt: string;
   readonly items: Array<PiToolItem>;
   readonly inFlightTools: Map<RuntimeItemId, PiToolItem>;
+  readonly messageUsage: Array<PiMessageUsage | undefined>;
   lastAssistantError: string | undefined;
   completionOverride:
     | { readonly state: "interrupted" | "cancelled"; readonly errorMessage: string }
@@ -446,6 +455,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         turnId: turnState.turnId,
         payload: {
           state,
+          tokenUsage: completePiTurnUsage(turnState.messageUsage, state === "completed"),
           ...(errorMessage ? { errorMessage } : {}),
         },
       });
@@ -460,6 +470,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         startedAt,
         items: [],
         inFlightTools: new Map(),
+        messageUsage: [],
         lastAssistantError: undefined,
         completionOverride: undefined,
       };
@@ -627,6 +638,9 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           if (!context.turnState) {
             yield* openTurn(context);
           }
+          // One assistant response per Pi internal turn. Repeated message_end,
+          // turn_end and agent_end snapshots must not count that response twice.
+          context.turnState?.messageUsage.push(undefined);
           return;
         }
 
@@ -638,6 +652,8 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           const turnId = context.turnState?.turnId;
           if (message["role"] === "assistant") {
             if (context.turnState) {
+              const usage = context.turnState.messageUsage;
+              usage[Math.max(0, usage.length - 1)] = normalizePiMessageUsage(message);
               context.turnState.lastAssistantError =
                 message["stopReason"] === "error"
                   ? typeof message["errorMessage"] === "string" &&
@@ -1194,6 +1210,8 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     message: PiStdoutMessage,
   ): Effect.Effect<void> => {
     switch (message._tag) {
+      case "drain":
+        return Deferred.succeed(message.deferred, undefined).pipe(Effect.asVoid);
       case "event":
         return handlePiEvent(context, message.event);
       case "extension-ui":
@@ -1546,7 +1564,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     const stateResponse = yield* transport.request(
       { type: "get_state" },
       `pi-get-state-${yield* nextUuid}`,
-      PI_STATE_TIMEOUT_MS,
+      PI_STARTUP_TIMEOUT_MS,
     );
     if (!piResponseSucceeded(stateResponse, "get_state")) {
       yield* stopSessionInternal(context, { emitExitEvent: false });
@@ -1564,7 +1582,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
     const commandsResponse = yield* transport.request(
       { type: "get_commands" },
       `pi-get-commands-${yield* nextUuid}`,
-      PI_COMMANDS_TIMEOUT_MS,
+      PI_STARTUP_TIMEOUT_MS,
     );
     if (!piResponseSucceeded(commandsResponse, "get_commands")) {
       yield* stopSessionInternal(context, { emitExitEvent: false });
@@ -1691,6 +1709,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         startedAt,
         items: [],
         inFlightTools: new Map(),
+        messageUsage: [],
         lastAssistantError: undefined,
         completionOverride: undefined,
       };
@@ -1794,29 +1813,37 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
           detail: "Pi did not acknowledge the abort request.",
         });
       }
+      // RPC responses resolve on the reader fiber, independently of the event
+      // consumer. Drain preceding message_end events before forced completion.
+      const drained = yield* Deferred.make<void>();
+      if (yield* Queue.offer(context.transport.messages, { _tag: "drain", deferred: drained })) {
+        yield* Deferred.await(drained).pipe(
+          Effect.raceFirst(
+            context.notificationFiber ? Fiber.await(context.notificationFiber) : Effect.void,
+          ),
+        );
+      }
       if (context.turnState?.turnId === activeTurn.turnId) {
         yield* completeTurn(context, "interrupted", "Turn interrupted.");
       }
     },
   );
 
-  const compactThread: PiAdapterShape["compactThread"] = Effect.fn("compactThread")(
-    function* (threadId) {
-      const context = yield* requireSession(threadId);
-      const response = yield* context.transport.request(
-        buildPiCompactCommand(),
-        `pi-compact-${yield* nextUuid}`,
-        PI_COMPACT_TIMEOUT_MS,
-      );
-      if (!piResponseSucceeded(response, "compact")) {
-        return yield* new ProviderAdapterRequestError({
-          provider: PROVIDER,
-          method: "compact",
-          detail: "Pi rejected the compact request.",
-        });
-      }
-    },
-  );
+  const compactThread = Effect.fn("compactThread")(function* (threadId: ThreadId) {
+    const context = yield* requireSession(threadId);
+    const response = yield* context.transport.request(
+      buildPiCompactCommand(),
+      `pi-compact-${yield* nextUuid}`,
+      PI_COMPACT_TIMEOUT_MS,
+    );
+    if (!piResponseSucceeded(response, "compact")) {
+      return yield* new ProviderAdapterRequestError({
+        provider: PROVIDER,
+        method: "compact",
+        detail: "Pi rejected the compact request.",
+      });
+    }
+  });
 
   const respondToRequest: PiAdapterShape["respondToRequest"] = Effect.fn("respondToRequest")(
     function* (threadId, requestId, decision: ProviderApprovalDecision) {
@@ -2026,11 +2053,10 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
 
   return {
     provider: PROVIDER,
-    capabilities: { sessionModelSwitch: "in-session" as const, manualCompaction: true },
+    capabilities: { sessionModelSwitch: "in-session" as const },
     startSession,
     sendTurn,
     interruptTurn,
-    compactThread,
     compaction: { type: "native", start: compactThread },
     readThread,
     rollbackThread,
