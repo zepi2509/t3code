@@ -179,7 +179,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     );
   }
 
-  if (isRunning && (supportsSteer || !showSendWhileRunning)) {
+  if (isRunning && supportsSteer) {
     const primaryDeliveryMode = midTurnPrimaryDeliveryMode({
       ...shortcutModifiers,
       supportsFollowUp,

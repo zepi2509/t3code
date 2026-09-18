@@ -205,6 +205,7 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         branch: input.branch,
         stagedSummary: input.stagedSummary,
         stagedPatch: input.stagedPatch,
+        policy: input.policy,
         includeBranch: input.includeBranch === true,
       });
       const generated = yield* runPiJson({
@@ -231,6 +232,8 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         commitSummary: input.commitSummary,
         diffSummary: input.diffSummary,
         diffPatch: input.diffPatch,
+        policy: input.policy,
+        changeRequestTemplate: input.changeRequestTemplate,
       });
       const generated = yield* runPiJson({
         operation: "generatePrContent",
@@ -266,6 +269,8 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
       const { prompt, outputSchema } = buildThreadTitlePrompt({
         message: input.message,
         attachments: input.attachments,
+        previousTitle: input.previousTitle,
+        linkedContext: input.linkedContext,
       });
       const generated = yield* runPiJson({
         operation: "generateThreadTitle",
@@ -274,7 +279,10 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         outputSchemaJson: outputSchema,
         modelSelection: input.modelSelection,
       });
-      return { title: sanitizeThreadTitle(generated.title) };
+      return {
+        title: sanitizeThreadTitle(generated.title),
+        ...(generated.needsRefinement ? { needsRefinement: true } : {}),
+      };
     });
 
   return {
