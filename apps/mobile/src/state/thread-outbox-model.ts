@@ -15,6 +15,7 @@ import {
   ProviderInteractionMode,
   RuntimeMode,
   ThreadId,
+  TurnDeliveryMode,
   type ModelSelection as ModelSelectionType,
   type ProjectId as ProjectIdType,
   type ProviderInteractionMode as ProviderInteractionModeType,
@@ -56,6 +57,7 @@ export const QueuedThreadMessageSchema = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   runtimeMode: Schema.optional(RuntimeMode),
   interactionMode: Schema.optional(ProviderInteractionMode),
+  deliveryMode: Schema.optional(TurnDeliveryMode),
   // Present when the queued item creates a brand-new thread (pending task)
   // instead of appending a turn to an existing one.
   creation: Schema.optional(QueuedThreadCreationSchema),
@@ -86,6 +88,7 @@ export interface QueuedThreadMessage {
   readonly modelSelection?: ModelSelectionType;
   readonly runtimeMode?: RuntimeModeType;
   readonly interactionMode?: ProviderInteractionModeType;
+  readonly deliveryMode?: TurnDeliveryMode;
   readonly creation?: QueuedThreadCreation;
   readonly createdAt: string;
 }
@@ -94,12 +97,16 @@ export interface ThreadSettingsSnapshot {
   readonly modelSelection: ModelSelectionType;
   readonly runtimeMode: RuntimeModeType;
   readonly interactionMode: ProviderInteractionModeType;
+  readonly deliveryMode?: TurnDeliveryMode;
 }
 
 export function resolveQueuedThreadSettings(
   message: QueuedThreadMessage,
   thread: ThreadSettingsSnapshot,
-  providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "showInteractionModeToggle">> = [],
+  providers: ReadonlyArray<
+    Pick<ServerProvider, "instanceId" | "showInteractionModeToggle"> &
+      Partial<Pick<ServerProvider, "driver">>
+  > = [],
 ): ThreadSettingsSnapshot {
   const modelSelection = message.modelSelection ?? thread.modelSelection;
   const provider = providers.find(
@@ -108,6 +115,9 @@ export function resolveQueuedThreadSettings(
   return {
     modelSelection,
     runtimeMode: message.runtimeMode ?? thread.runtimeMode,
+    ...(provider?.driver === "pi" && message.deliveryMode !== undefined
+      ? { deliveryMode: message.deliveryMode }
+      : {}),
     interactionMode: resolveProviderInteractionMode(
       provider,
       message.interactionMode ?? thread.interactionMode,
