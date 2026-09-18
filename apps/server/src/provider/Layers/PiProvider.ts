@@ -13,6 +13,7 @@ import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import { ChildProcess } from "effect/unstable/process";
 
+import { ProviderAdapterRequestError } from "../Errors.ts";
 import {
   buildServerProvider,
   DEFAULT_TIMEOUT_MS,
@@ -28,6 +29,8 @@ import {
   makePiRpcTransport,
   piCommandsToProviderResources,
   piModelInfoToServerModel,
+  piResponseData,
+  piResponseSucceeded,
 } from "./PiRpcClient.ts";
 
 const PI_PRESENTATION = {
@@ -67,16 +70,49 @@ interface PiResources {
 
 const EMPTY_PI_RESOURCES: PiResources = { models: [], slashCommands: [], skills: [] };
 
+const makePiDiscoveryTransport = (
+  piSettings: PiSettings,
+  cwd: string,
+  environment: NodeJS.ProcessEnv,
+) =>
+  makePiRpcTransport({
+    binaryPath: piSettings.binaryPath || "pi",
+    args: ["--mode", "rpc", "--no-session"],
+    cwd,
+    env: environment,
+    onExit: Effect.void,
+  });
+
+/** Workspace probes leave model discovery to the managed provider snapshot. */
+export const discoverPiCommandsViaRpc = Effect.fn("discoverPiCommandsViaRpc")(
+  function* (piSettings: PiSettings, cwd: string, environment: NodeJS.ProcessEnv) {
+    const transport = yield* makePiDiscoveryTransport(piSettings, cwd, environment);
+    const response = yield* transport.request(
+      { type: "get_commands" },
+      "pi-command-discovery",
+      PI_MODEL_DISCOVERY_TIMEOUT_MS,
+    );
+    // Keep failures typed so the registry does not cache an empty workspace catalog.
+    if (
+      !piResponseSucceeded(response, "get_commands") ||
+      !Array.isArray(piResponseData(response)?.["commands"])
+    ) {
+      return yield* new ProviderAdapterRequestError({
+        provider: "pi",
+        method: "get_commands",
+        detail: `Failed to discover Pi commands for '${cwd}'.`,
+      });
+    }
+    return piCommandsToProviderResources(extractPiCommands(response));
+  },
+  Effect.scoped,
+  Effect.timeout(PI_MODEL_DISCOVERY_TIMEOUT_MS),
+);
+
 /** Discover all RPC-visible Pi resources in one short-lived session. */
 export const discoverPiResourcesViaRpc = Effect.fn("discoverPiResourcesViaRpc")(
   function* (piSettings: PiSettings, cwd: string, environment: NodeJS.ProcessEnv) {
-    const transport = yield* makePiRpcTransport({
-      binaryPath: piSettings.binaryPath || "pi",
-      args: ["--mode", "rpc", "--no-session"],
-      cwd,
-      env: environment,
-      onExit: Effect.void,
-    });
+    const transport = yield* makePiDiscoveryTransport(piSettings, cwd, environment);
     const [modelsResponse, commandsResponse] = yield* Effect.all([
       transport.request(
         { type: "get_available_models" },
