@@ -54,27 +54,47 @@ const withFakePi = <A, E>(
 
 it.effect("generateThreadTitle parses the JSON returned via get_last_assistant_text", () =>
   withFakePi(
-    { PI_MOCK_ASSISTANT_TEXT: '{"title":"Investigate reconnect regressions"}' },
+    {
+      PI_MOCK_ASSISTANT_TEXT:
+        '{"title":"Investigate reconnect regressions","needsRefinement":true}',
+      PI_MOCK_EXPECT_PROMPT: JSON.stringify([
+        "Old reconnect title",
+        "Linked reconnect issue details",
+      ]),
+    },
     (textGeneration) =>
       Effect.gen(function* () {
         const result = yield* textGeneration.generateThreadTitle({
           cwd: process.cwd(),
           message: "look into reconnect bugs",
+          previousTitle: "Old reconnect title",
+          linkedContext: "Linked reconnect issue details",
           modelSelection: DEFAULT_TEST_MODEL_SELECTION,
         });
-        expect(result.title).toBe("Investigate reconnect regressions");
+        expect(result).toEqual({
+          title: "Investigate reconnect regressions",
+          needsRefinement: true,
+        });
       }),
   ).pipe(Effect.provide(PiTextGenerationTestLayer)),
 );
 
 it.effect("generateCommitMessage sanitizes subject and trims body", () =>
   withFakePi(
-    { PI_MOCK_ASSISTANT_TEXT: '{"subject":"Add reconnect handling.","body":"- detail\\n"}' },
+    {
+      PI_MOCK_ASSISTANT_TEXT: '{"subject":"Add reconnect handling.","body":"- detail\\n"}',
+      PI_MOCK_EXPECT_PROMPT: JSON.stringify(["Use the repository commit policy"]),
+    },
     (textGeneration) =>
       Effect.gen(function* () {
         const result = yield* textGeneration.generateCommitMessage({
           cwd: process.cwd(),
           branch: "feature/pi",
+          policy: {
+            kind: "custom",
+            commitInstructions: "Use the repository commit policy",
+            inferRepositoryConventions: false,
+          },
           stagedSummary: "M file.ts",
           stagedPatch: "@@ -1 +1 @@\n-old\n+new\n",
           modelSelection: DEFAULT_TEST_MODEL_SELECTION,
@@ -103,6 +123,7 @@ it.effect("generatePrContent sanitizes title and body", () =>
   withFakePi(
     {
       PI_MOCK_ASSISTANT_TEXT: '{"title":"Improve reconnect flow","body":"## Summary\\n- x\\n\\n"}',
+      PI_MOCK_EXPECT_PROMPT: JSON.stringify(["Use the repository PR policy", "## Test evidence"]),
     },
     (textGeneration) =>
       Effect.gen(function* () {
@@ -110,6 +131,12 @@ it.effect("generatePrContent sanitizes title and body", () =>
           cwd: process.cwd(),
           baseBranch: "main",
           headBranch: "feature/pi",
+          policy: {
+            kind: "custom",
+            changeRequestInstructions: "Use the repository PR policy",
+            inferRepositoryConventions: false,
+          },
+          changeRequestTemplate: "## Test evidence",
           commitSummary: "one commit",
           diffSummary: "file.ts | 2 +-",
           diffPatch: "@@ -1 +1 @@\n-old\n+new\n",
