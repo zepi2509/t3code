@@ -35,6 +35,8 @@ export type PiAgentEvent =
     };
 
 export type PiStdoutMessage =
+  // Adapter-local FIFO receipt; never parsed from the Pi wire protocol.
+  | { readonly _tag: "drain"; readonly deferred: Deferred.Deferred<void> }
   | { readonly _tag: "response"; readonly id: string | undefined; readonly response: RpcResponse }
   | { readonly _tag: "extension-ui"; readonly request: RpcExtensionUIRequest }
   | { readonly _tag: "event"; readonly event: PiAgentEvent }
@@ -606,7 +608,7 @@ export interface PiRpcTransport {
     id: string,
     timeoutMs: number,
   ) => Effect.Effect<RpcResponse | undefined>;
-  readonly messages: Queue.Dequeue<PiStdoutMessage>;
+  readonly messages: Queue.Queue<PiStdoutMessage>;
   readonly kill: Effect.Effect<void>;
 }
 
