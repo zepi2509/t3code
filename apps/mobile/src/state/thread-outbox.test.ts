@@ -11,6 +11,7 @@ import {
   OrchestrationDispatchCommandError,
   ProjectId,
   ProviderInstanceId,
+  ProviderDriverKind,
   ThreadId,
 } from "@t3tools/contracts";
 import { AtomRegistry } from "effect/unstable/reactivity";
@@ -115,6 +116,86 @@ function queuedMessage(input: {
 }
 
 describe("thread outbox", () => {
+  it.each(["steer", "follow-up"] as const)(
+    "preserves %s delivery through durable edits, reload, and retry",
+    async (deliveryMode) => {
+      onTestFinished(() => outboxFiles.clear());
+      const registry = AtomRegistry.make();
+      onTestFinished(() => registry.dispose());
+      const manager = createThreadOutboxManager({ registry, storage: expoThreadOutboxStorage });
+      const modelSelection = { instanceId: ProviderInstanceId.make("pi"), model: "test-model" };
+      const message = {
+        ...queuedMessage({ messageId: "delivery", createdAt: "2026-06-08T10:00:01.000Z" }),
+        modelSelection,
+        deliveryMode,
+      };
+      await manager.enqueue(message);
+      const edited = { ...message, text: "Updated queued prompt" };
+      await expect(manager.update(edited)).resolves.toBe(true);
+
+      const reloaded = createThreadOutboxManager({ registry, storage: expoThreadOutboxStorage });
+      await expect(reloaded.load()).resolves.toBe(true);
+      const recovered = registry.get(reloaded.queuedMessagesByThreadKeyAtom)[
+        "environment-1:thread-1"
+      ]![0]!;
+      expect(recovered).toEqual(edited);
+      const settings = {
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+      } as const;
+      const providers = [
+        {
+          instanceId: modelSelection.instanceId,
+          driver: ProviderDriverKind.make("pi"),
+          showInteractionModeToggle: false,
+        },
+      ] as const;
+      // A transient send failure leaves the same durable payload for the retry.
+      expect(
+        resolveThreadOutboxFailureAction({
+          stage: "start-turn",
+          error: { _tag: "RpcClientError" },
+          interrupted: false,
+        }),
+      ).toBe("retry");
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await expect(reloaded.confirmQueued(recovered)).resolves.toBe(true);
+        expect(resolveQueuedThreadSettings(recovered, settings, providers).deliveryMode).toBe(
+          deliveryMode,
+        );
+      }
+      // The queued model snapshot wins over a later thread/provider switch.
+      expect(
+        resolveQueuedThreadSettings(
+          recovered,
+          {
+            ...settings,
+            modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "other" },
+          },
+          providers,
+        ).deliveryMode,
+      ).toBe(deliveryMode);
+      // An edited payload or a changed provider config must not leak Pi delivery to another driver.
+      expect(
+        resolveQueuedThreadSettings(recovered, settings, [
+          { ...providers[0], driver: ProviderDriverKind.make("codex") },
+        ]),
+      ).not.toHaveProperty("deliveryMode");
+      expect(resolveQueuedThreadSettings(recovered, settings)).not.toHaveProperty("deliveryMode");
+    },
+  );
+
+  it.each([1, 2, 3, 4])(
+    "keeps the implicit delivery default for version %s records",
+    (schemaVersion) => {
+      const message = queuedMessage({ messageId: "legacy", createdAt: "2026-06-08T10:00:01.000Z" });
+      const recovered = decodeQueuedThreadMessage({ ...message, schemaVersion });
+      expect(recovered).toEqual(message);
+      expect(encodeQueuedThreadMessage(recovered)).not.toHaveProperty("deliveryMode");
+    },
+  );
+
   it("retains structured context through a persisted offline queue round trip", () => {
     const message: QueuedThreadMessage = {
       ...queuedMessage({ messageId: "context-message", createdAt: "2026-09-06T12:00:00.000Z" }),

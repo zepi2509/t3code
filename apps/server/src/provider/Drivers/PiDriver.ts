@@ -14,7 +14,11 @@ import { ServerSettingsService } from "../../serverSettings.ts";
 import { makePiTextGeneration } from "../../textGeneration/PiTextGeneration.ts";
 import { ProviderDriverError } from "../Errors.ts";
 import { makePiAdapter } from "../Layers/PiAdapter.ts";
-import { buildInitialPiProviderSnapshot, checkPiProviderStatus } from "../Layers/PiProvider.ts";
+import {
+  buildInitialPiProviderSnapshot,
+  checkPiProviderStatus,
+  discoverPiCommandsViaRpc,
+} from "../Layers/PiProvider.ts";
 import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
@@ -173,6 +177,35 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv> = {
         accentColor,
         enabled,
         snapshot,
+        snapshotForCwd: (cwd) =>
+          !effectiveConfig.enabled
+            ? snapshot.getSnapshot
+            : Effect.all([
+                snapshot.getSnapshot,
+                discoverPiCommandsViaRpc(effectiveConfig, cwd, processEnv).pipe(
+                  Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+                  Effect.mapError(
+                    (cause) =>
+                      new ProviderDriverError({
+                        driver: DRIVER_KIND,
+                        instanceId,
+                        detail: `Failed to discover Pi resources for '${cwd}'`,
+                        cause,
+                      }),
+                  ),
+                ),
+              ]).pipe(
+                Effect.map(([machineSnapshot, resources]) => ({
+                  ...machineSnapshot,
+                  slashCommands: [
+                    ...machineSnapshot.slashCommands.filter(
+                      (command) => command.name === "compact",
+                    ),
+                    ...resources.slashCommands.filter((command) => command.name !== "compact"),
+                  ],
+                  skills: resources.skills,
+                })),
+              ),
         adapter,
         textGeneration,
       } satisfies ProviderInstance;
