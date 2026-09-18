@@ -44,6 +44,7 @@ interface FakePiTransport {
   readonly commands: Array<RpcCommand>;
   readonly requestTimeouts: Array<{ readonly type: string; readonly timeoutMs: number }>;
   readonly extensionResponses: Array<RpcExtensionUIResponse>;
+  readonly eventsBeforeResponse: Map<string, ReadonlyArray<AgentSessionEvent>>;
   readonly pushEvent: (event: AgentSessionEvent) => Effect.Effect<void>;
   readonly pushExtensionUI: (request: RpcExtensionUIRequest) => Effect.Effect<void>;
   readonly setResponse: (commandType: string, response: RpcResponse) => void;
@@ -57,6 +58,7 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
   const requestTimeouts: Array<{ type: string; timeoutMs: number }> = [];
   const extensionResponses: Array<RpcExtensionUIResponse> = [];
   const responses = new Map<string, RpcResponse>();
+  const eventsBeforeResponse = new Map<string, ReadonlyArray<AgentSessionEvent>>();
   responses.set(
     "get_state",
     asResponse({
@@ -121,9 +123,12 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
         extensionResponses.push(response);
       }),
     request: (command, _id, timeoutMs) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
         commands.push(command);
         requestTimeouts.push({ type: command.type, timeoutMs });
+        for (const event of eventsBeforeResponse.get(command.type) ?? []) {
+          yield* Queue.offer(messages, { _tag: "event", event });
+        }
         return responses.get(command.type);
       }),
     messages,
@@ -135,6 +140,7 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
     commands,
     requestTimeouts,
     extensionResponses,
+    eventsBeforeResponse,
     pushEvent: (event) => Queue.offer(messages, { _tag: "event", event }).pipe(Effect.asVoid),
     pushExtensionUI: (request) =>
       Queue.offer(messages, { _tag: "extension-ui", request }).pipe(Effect.asVoid),
@@ -173,6 +179,131 @@ const enabledSettings = (overrides: Record<string, unknown> = {}) =>
   decodePiSettings({ enabled: true, ...overrides });
 
 it.layer(HarnessLayer)("PiAdapter integration", (it) => {
+  it.effect("reports usage once across internal turns and resets it for the next T3 turn", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-turn-usage");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      for (let index = 0; index < 2; index++) {
+        const collected = yield* collectEvents(
+          adapter,
+          threadId,
+          (event) => event.type === "turn.completed",
+        );
+        yield* adapter.sendTurn({ threadId, input: "private prompt", attachments: [] });
+        const message = {
+          role: "assistant",
+          content: [],
+          stopReason: "toolUse",
+          usage: {
+            input: 10,
+            output: 3,
+            cacheRead: 20,
+            cacheWrite: 5,
+            totalTokens: 38,
+            cost: { total: 123 },
+          },
+        };
+        if (index === 0) {
+          yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
+          yield* fake.pushEvent({ type: "message_start", message } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({ type: "message_end", message } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({ type: "message_end", message } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "turn_end",
+            message,
+            toolResults: [],
+          } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "agent_end",
+            messages: [message],
+            willRetry: true,
+          } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "compaction_end",
+            reason: "overflow",
+            result: { summary: "private summary", tokensBefore: 500, usage: message.usage },
+            aborted: false,
+            willRetry: true,
+          } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "message_end",
+            message: { ...message, role: "toolResult" },
+          } as unknown as AgentSessionEvent);
+          yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "message_end",
+            message: { ...message, stopReason: "stop" },
+          } as unknown as AgentSessionEvent);
+        }
+        yield* fake.pushEvent({ type: "agent_settled" } as AgentSessionEvent);
+        yield* Fiber.join(collected.fiber);
+        const events = yield* Ref.get(collected.store);
+        const completed = events.find((event) => event.type === "turn.completed");
+        expect(completed?.payload.tokenUsage).toEqual(
+          index === 0
+            ? {
+                usageScope: "main_agent",
+                usageStatus: "complete",
+                hasSubagents: false,
+                inputTokens: 70,
+                outputTokens: 6,
+                cachedInputTokens: 40,
+                cacheCreationTokens: 10,
+              }
+            : { usageScope: "main_agent", usageStatus: "unavailable", hasSubagents: false },
+        );
+        expect(completed?.raw).toBeUndefined();
+        expect(events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
+      }
+    }),
+  );
+
+  it.effect("drains message endings queued before the abort response before reporting usage", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-interrupt-usage-drain");
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
+      );
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      yield* adapter.sendTurn({ threadId, input: "inspect", attachments: [] });
+      fake.eventsBeforeResponse.set("abort", [
+        { type: "turn_start" },
+        {
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [],
+            stopReason: "aborted",
+            usage: { input: 10, output: 3, cacheRead: 20, cacheWrite: 5 },
+          },
+        },
+      ] as unknown as AgentSessionEvent[]);
+      yield* adapter.interruptTurn(threadId);
+      yield* Fiber.join(collected.fiber);
+      const events = yield* Ref.get(collected.store);
+      expect(events.find((event) => event.type === "turn.completed")).toMatchObject({
+        payload: {
+          state: "interrupted",
+          tokenUsage: { usageStatus: "partial", inputTokens: 35, outputTokens: 3 },
+        },
+      });
+    }),
+  );
+
   it.effect("starts a session, streams assistant text, and completes the turn", () =>
     Effect.gen(function* () {
       const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
@@ -192,6 +323,10 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
       expect(session.provider).toBe("pi");
       expect(session.status).toBe("ready");
       expect(session.resumeCursor).toEqual({ sessionFile: "/tmp/pi-session.json" });
+      expect(fake.requestTimeouts.slice(0, 2)).toEqual([
+        { type: "get_state", timeoutMs: 30_000 },
+        { type: "get_commands", timeoutMs: 30_000 },
+      ]);
 
       const turn = yield* adapter.sendTurn({ threadId, input: "hello", attachments: [] });
       expect(turn.turnId).toBeDefined();

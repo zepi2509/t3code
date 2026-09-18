@@ -1862,17 +1862,25 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
     case "thread.compact": {
-      yield* requireThread({ readModel, command, threadId: command.threadId });
-      return {
-        ...(yield* withEventBase({
-          aggregateKind: "thread",
-          aggregateId: command.threadId,
-          occurredAt: command.createdAt,
+      const thread = yield* requireThread({ readModel, command, threadId: command.threadId });
+      // Keep older clients on the same guarded lifecycle as a typed /compact turn.
+      return yield* decideOrchestrationCommand({
+        readModel,
+        command: {
+          type: "thread.turn.start",
           commandId: command.commandId,
-        })),
-        type: "thread.compact-requested",
-        payload: { threadId: command.threadId, createdAt: command.createdAt },
-      };
+          threadId: command.threadId,
+          message: {
+            messageId: MessageId.make(`compact:${command.commandId}`),
+            role: "user",
+            text: "/compact",
+            attachments: [],
+          },
+          runtimeMode: thread.runtimeMode,
+          interactionMode: thread.interactionMode,
+          createdAt: command.createdAt,
+        },
+      });
     }
 
     case "thread.session.set": {

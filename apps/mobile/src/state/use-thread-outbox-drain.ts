@@ -821,6 +821,9 @@ export function useThreadOutboxDrain(): void {
           modelSelection: sendSettings.modelSelection,
           runtimeMode: sendSettings.runtimeMode,
           interactionMode: sendSettings.interactionMode,
+          ...(sendSettings.deliveryMode !== undefined
+            ? { deliveryMode: sendSettings.deliveryMode }
+            : {}),
           createdAt: queuedMessage.createdAt,
         },
       });

@@ -52,7 +52,6 @@ export interface ProviderAdapterCapabilities {
   readonly promptlessTurnContinuation?: boolean;
   /** False when native conversation history cannot be rewound. */
   readonly supportsConversationRollback?: boolean;
-  readonly manualCompaction?: boolean;
 }
 
 export interface ProviderThreadTurnSnapshot {
@@ -93,8 +92,6 @@ export interface ProviderAdapterShape<TError> {
    * Interrupt an active turn.
    */
   readonly interruptTurn: (threadId: ThreadId, turnId?: TurnId) => Effect.Effect<void, TError>;
-
-  readonly compactThread?: (threadId: ThreadId) => Effect.Effect<void, TError>;
 
   /**
    * Respond to an interactive approval request.

@@ -14,6 +14,7 @@ import {
   type RuntimeMode,
   type ServerConfig as T3ServerConfig,
   type UsageLimitsReport,
+  type TurnDeliveryMode,
 } from "@t3tools/contracts";
 import {
   collectProviderUsageLimits,
@@ -76,6 +77,7 @@ import {
   ComposerToolbarRow,
 } from "../../components/ComposerToolbar";
 import { ProviderIcon } from "../../components/ProviderIcon";
+import { ControlPillMenu } from "../../components/ControlPill";
 import {
   composerStripAttachments,
   type DraftComposerAttachment,
@@ -146,7 +148,7 @@ export interface ThreadComposerProps {
   readonly onNativePasteText: (paste: ComposerTextPaste) => Promise<void>;
   readonly onRemoveDraftImage: (imageId: string) => void;
   readonly onStopThread: () => void;
-  readonly onSendMessage: () => Promise<MessageId | null>;
+  readonly onSendMessage: (deliveryMode?: TurnDeliveryMode) => Promise<MessageId | null>;
   /** `/usage-limits` resolves locally; the host decides where the report shows. Null clears it. */
   readonly onShowUsageLimits: (report: UsageLimitsReport | null) => void;
   readonly onUpdateModelSelection: (modelSelection: ModelSelection) => void;
@@ -317,7 +319,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     });
   // Every send goes through the outbox; the label says whether it leaves now
   // or waits (for the connection, an earlier queued message, or an upload).
-  const sendLabel =
+  const outboxSendLabel =
     props.connectionState !== "connected" || props.queueCount > 0 || attachmentsUploading
       ? "Queue"
       : "Send";
@@ -335,6 +337,26 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     );
   }, [props.serverConfig, props.selectedThread.modelSelection.instanceId]);
   const composerOwnerKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
+  const offersDeliveryMode =
+    selectedProviderStatus?.driver === "pi" &&
+    (props.selectedThread.session?.status === "running" ||
+      props.selectedThread.session?.status === "starting");
+  const deliveryOwnerKey = `${composerOwnerKey}:${currentModelSelection.instanceId}:${props.selectedThread.session?.activeTurnId ?? ""}`;
+  const [deliveryChoice, setDeliveryChoice] = useState<{
+    readonly ownerKey: string;
+    readonly mode: TurnDeliveryMode;
+  } | null>(null);
+  const deliveryMode = offersDeliveryMode
+    ? deliveryChoice?.ownerKey === deliveryOwnerKey
+      ? deliveryChoice.mode
+      : "steer"
+    : undefined;
+  const sendLabel =
+    deliveryMode === "follow-up"
+      ? "Queue follow-up"
+      : deliveryMode === "steer"
+        ? "Steer"
+        : outboxSendLabel;
   const openDraftDocument = (attachment: ComposerDocumentAttachment) => {
     Keyboard.dismiss();
     navigation.navigate("ThreadAttachment", {
@@ -492,7 +514,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     if (inFlightThreadIdsRef.current.has(threadKey)) return;
     inFlightThreadIdsRef.current.add(threadKey);
     try {
-      const messageId = await onSendMessage();
+      const messageId = await onSendMessage(deliveryMode);
       if (messageId === null) {
         return;
       }
@@ -515,12 +537,42 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     openUsageLimits,
     usageLimitsOffered,
     onSendMessage,
+    deliveryMode,
     props.environmentId,
     props.environmentLabel,
     props.selectedThread.id,
     props.selectedThread.title,
     voiceInput.blocksSubmission,
   ]);
+
+  const deliveryModeControl =
+    offersDeliveryMode && hasContent ? (
+      <ControlPillMenu
+        actions={[
+          {
+            id: "steer",
+            title: "Steer — redirect the current turn",
+            state: deliveryMode === "steer" ? "on" : "off",
+          },
+          {
+            id: "follow-up",
+            title: "Queue — send after the current turn",
+            state: deliveryMode === "follow-up" ? "on" : "off",
+          },
+        ]}
+        onPressAction={({ nativeEvent }) => {
+          if (nativeEvent.event === "steer" || nativeEvent.event === "follow-up") {
+            setDeliveryChoice({ ownerKey: deliveryOwnerKey, mode: nativeEvent.event });
+          }
+        }}
+      >
+        <ComposerInlineControl
+          label={deliveryMode === "follow-up" ? "Queue" : "Steer"}
+          accessibilityLabel={`Message delivery: ${deliveryMode === "follow-up" ? "Queue follow-up" : "Steer"}`}
+          accessibilityHint="Choose whether to redirect the current turn or send after it finishes"
+        />
+      </ControlPillMenu>
+    ) : null;
 
   // ── Model menu ───────────────────────────────────────────
   const modelOptions = useMemo(
@@ -870,6 +922,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             ) : null}
             {!isExpanded ? (
               <View className="flex-row items-center">
+                {deliveryModeControl}
                 <ComposerDictationStartAction
                   state={voiceInput.state}
                   isAvailable={voiceInput.isAvailable}
@@ -959,6 +1012,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   </View>
                 )}
                 <View className="shrink-0 flex-row items-center">
+                  {!isVoiceInputPresented ? deliveryModeControl : null}
                   <ComposerDictationPrimaryAction
                     state={voiceInput.state}
                     presentation={voicePresentation}
