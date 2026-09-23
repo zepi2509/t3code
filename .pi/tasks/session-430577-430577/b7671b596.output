@@ -1,0 +1,388 @@
+.repos/alchemy-effect/patches/@astrojs%2Fstarlight@0.42.0.patch:5: space before tab in indent.
++ 	return routesBySlugParam.get(slugParam?.replace(/\/$/, "") || void 0);
+.repos/alchemy-effect/website/src/content/docs/environments/secrets.mdx:28: trailing whitespace.
++    const apiKey = yield* Config.Redacted("API_KEY"); 
+.repos/effect-smol/packages/ai/openai/CHANGELOG.md:34: trailing whitespace.
++  
+.repos/effect-smol/packages/ai/openai/CHANGELOG.md:36: trailing whitespace.
++  
+.repos/effect-smol/packages/ai/openai/CHANGELOG.md:38: trailing whitespace.
++  
+.repos/effect-smol/packages/ai/openrouter/CHANGELOG.md:15: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:28: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:30: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:32: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:40: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:47: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:49: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:57: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:59: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:61: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:76: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:78: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:82: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:98: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:135: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:144: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:152: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:157: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:168: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:170: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:174: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:178: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:184: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:188: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:192: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:195: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:200: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:233: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:236: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:246: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:248: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:254: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:270: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:272: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:279: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:281: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:283: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:285: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:287: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:290: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:298: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:307: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:313: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:337: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:360: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:362: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:369: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:371: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:477: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:479: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:481: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:524: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:528: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:543: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:571: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:573: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:617: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:619: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:621: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:685: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:695: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:697: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:699: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:701: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:703: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:705: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:707: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:709: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:711: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:715: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:717: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:719: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:723: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:725: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:759: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:763: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:772: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:784: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:794: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:796: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:800: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:802: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:804: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:806: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:808: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:822: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:826: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:838: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:840: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:844: trailing whitespace.
++  
+.repos/effect-smol/packages/effect/CHANGELOG.md:856: trailing whitespace.
++  
+.repos/effect-smol/packages/opentelemetry/CHANGELOG.md:24: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/browser/CHANGELOG.md:32: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/browser/CHANGELOG.md:34: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/browser/CHANGELOG.md:36: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:17: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:40: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:58: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:60: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:64: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:66: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:68: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:81: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/bun/CHANGELOG.md:83: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:31: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:33: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:48: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:50: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:54: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:56: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:58: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:69: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/deno/CHANGELOG.md:71: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:25: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:27: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:31: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:41: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:43: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:58: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:60: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:76: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:78: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node-shared/CHANGELOG.md:80: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:39: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:57: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:59: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:69: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:71: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:73: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:87: trailing whitespace.
++  
+.repos/effect-smol/packages/platform/node/CHANGELOG.md:89: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/d1/CHANGELOG.md:22: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/pg/CHANGELOG.md:23: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/pg/CHANGELOG.md:25: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/pg/CHANGELOG.md:32: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/pg/CHANGELOG.md:34: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/pg/CHANGELOG.md:45: trailing whitespace.
++  
+.repos/effect-smol/packages/sql/pg/CHANGELOG.md:47: trailing whitespace.
++  
+.repos/effect-smol/packages/tools/doctest/CHANGELOG.md:30: trailing whitespace.
++  
+.repos/effect-smol/packages/tools/doctest/CHANGELOG.md:32: trailing whitespace.
++  
+.repos/effect-smol/packages/tools/doctest/CHANGELOG.md:38: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:33: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:42: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:50: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:55: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:66: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:68: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:72: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:76: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:82: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:86: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:90: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:93: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:98: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:131: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:134: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:140: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:142: trailing whitespace.
++  
+.repos/effect-smol/packages/vitest/CHANGELOG.md:148: trailing whitespace.
++  
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:5: space before tab in indent.
++ 		const bDate = new Date(b.mergedAt);
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:6: space before tab in indent.
++ 		return aDate.getTime() - bDate.getTime();
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:7: space before tab in indent.
++ 	})[0];
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:10: space before tab in indent.
++ 	return {
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:11: space before tab in indent.
++ 		commit: {
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:12: space before tab in indent.
++ 			sha: options.commit,
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:14: space before tab in indent.
++ 		author: author ? {
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:15: space before tab in indent.
++ 			login: author.login,
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:16: space before tab in indent.
++ 			url: author.url,
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:19: space before tab in indent.
++ 		} : void 0,
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:20: space before tab in indent.
++ 		pull: pr ? {
+.repos/effect-smol/patches/@changesets__get-github-info@1.0.1.patch:21: space before tab in indent.
++ 			number: pr.number,
+patches/@clerk__expo@4.6.8.patch:25: trailing whitespace.
++ 
+patches/@clerk__expo@4.6.8.patch:45: trailing whitespace.
++ 
+patches/@legendapp__list@3.3.5.patch:250: trailing whitespace.
++ 
+patches/@legendapp__list@3.3.5.patch:818: trailing whitespace.
++ 
+patches/@legendapp__list@3.3.5.patch:1385: trailing whitespace.
++ 
+patches/@legendapp__list@3.3.5.patch:1420: trailing whitespace.
++ 
+patches/@legendapp__list@3.3.5.patch:1478: trailing whitespace.
++ 
+patches/@legendapp__list@3.3.5.patch:1546: trailing whitespace.
++ 
+patches/effect@4.0.0-rc.115.patch:351: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:23: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:36: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:40: trailing whitespace.
++-  
+patches/expo-widgets@57.0.15.patch:42: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:44: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:98: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:105: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:116: trailing whitespace.
++ 
+patches/expo-widgets@57.0.15.patch:124: trailing whitespace.
++ 
