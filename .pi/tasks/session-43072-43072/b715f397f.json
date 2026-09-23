@@ -1,0 +1,20 @@
+{
+  "id": "b715f397f",
+  "name": "Nix Hashes validieren",
+  "command": "cd /tmp/t3code-sync-20260909 && NP_LOCATION=/tmp/t3-nix-home /tmp/nix-portable nix build --impure --no-link --expr 'let flake = builtins.getFlake \"path:/tmp/t3code-sync-20260909\"; in flake.packages.x86_64-linux.unwrapped.pnpmDeps' > /tmp/t3-sync-nix-validate-unwrapped.log 2>&1 && NP_LOCATION=/tmp/t3-nix-home /tmp/nix-portable nix build --impure --no-link --expr 'let flake = builtins.getFlake \"path:/tmp/t3code-sync-20260909\"; in flake.packages.x86_64-linux.server.pnpmDeps' > /tmp/t3-sync-nix-validate-server.log 2>&1",
+  "description": "Verify both computed Nix dependency hashes",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-43072-43072/b715f397f.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788943704286,
+  "endTime": 1788944186534,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 55512,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 1800
+}
