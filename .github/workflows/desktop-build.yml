@@ -89,12 +89,12 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
-  build_wsl_node_pty:
-    name: Build WSL node-pty (linux-x64)
+  build_wsl_runtime:
+    name: Build WSL CLI runtime (linux-x64)
     needs: prepare
     if: inputs.target == 'all' || inputs.target == 'windows-x64'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
@@ -105,25 +105,34 @@ jobs:
           node-version-file: package.json
           cache: true
           run-install: true
-      - name: Build Linux prebuild
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev pkg-config
+      - name: Build Linux CLI runtime
         shell: bash
         run: |
           set -euo pipefail
-          pty_pkg="$(node -e "console.log(require.resolve('node-pty/package.json', { paths: ['$GITHUB_WORKSPACE/apps/server'] }))")"
-          pty_dir="$(dirname "$pty_pkg")"
-          (cd "$pty_dir" && npx --yes node-gyp rebuild)
-          mkdir -p wsl-prebuild
-          cp "$pty_dir/build/Release/pty.node" wsl-prebuild/pty.node
-          file wsl-prebuild/pty.node
+          node scripts/update-release-package-versions.ts "${{ needs.prepare.outputs.version }}"
+          vp run --filter t3 build
+          VP_NODE_VERSION=26.8.2 node apps/server/scripts/cli.ts build-exe --verbose
+          cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml
+          mkdir -p "$RUNNER_TEMP/cli-resource-monitor/linux-x64"
+          cp native/resource-monitor/target/release/t3-resource-monitor "$RUNNER_TEMP/cli-resource-monitor/linux-x64/"
+          node scripts/build-cli-archive.ts --platform linux --arch x64 \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --resource-monitor-dir "$RUNNER_TEMP/cli-resource-monitor" --output-dir wsl-runtime
+          node scripts/smoke-cli-archive.ts --archive wsl-runtime/*.tar.gz \
+            --expect-version "${{ needs.prepare.outputs.version }}"
       - uses: actions/upload-artifact@v7
         with:
-          name: wsl-node-pty-x64
-          path: wsl-prebuild/pty.node
+          name: wsl-runtime-x64
+          path: wsl-runtime/*.tar.gz
           if-no-files-found: error
 
   build:
-    needs: [prepare, build_wsl_node_pty]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    needs: [prepare, build_wsl_runtime]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.build_wsl_runtime.result == 'success' || needs.build_wsl_runtime.result == 'skipped') }}
     name: Build ${{ matrix.id }}
     strategy:
       fail-fast: false
@@ -170,12 +179,12 @@ jobs:
             exit $code
           }
 
-      - name: Download WSL node-pty prebuild
+      - name: Download WSL CLI runtime
         if: matrix.platform == 'win'
         uses: actions/download-artifact@v7
         with:
-          name: wsl-node-pty-x64
-          path: wsl-prebuild
+          name: wsl-runtime-x64
+          path: wsl-runtime
 
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
@@ -200,7 +209,7 @@ jobs:
             --verbose
           )
           if [[ "${{ matrix.platform }}" == "win" ]]; then
-            args+=(--wsl-prebuild "$GITHUB_WORKSPACE/wsl-prebuild/pty.node")
+            args+=(--wsl-runtime "$GITHUB_WORKSPACE/wsl-runtime/t3-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz")
           fi
           vp run dist:desktop:artifact "${args[@]}"
 
@@ -208,6 +217,11 @@ jobs:
         if: matrix.id == 'macos-x64'
         shell: bash
         run: |
+          # Preview builds deliberately have no updater feed.
+          version="${{ needs.prepare.outputs.version }}"
+          if [[ "$version" == *-pr.* || "$version" =~ -preview\.[0-9]{8}\.[0-9]+$ ]]; then
+            exit 0
+          fi
           for manifest in release/*-mac.yml; do
             mv "$manifest" "${manifest%.yml}-x64.yml"
           done
@@ -246,6 +260,7 @@ jobs:
       - name: Merge macOS update manifests
         shell: bash
         run: |
+          shopt -s nullglob
           for x64_manifest in release/*-mac-x64.yml; do
             arm64_manifest="${x64_manifest%-x64.yml}.yml"
             if [[ -f "$arm64_manifest" ]]; then
