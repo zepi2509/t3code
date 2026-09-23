@@ -1,9 +1,0 @@
-Warning: No project session found with id 'delegate-6d204e990a4ee40976da19cd11cac293'; creating a new session with that id.
-No confirmed rebase regression in the inspected code.
-
-- `apps/server/src/textGeneration/PiTextGeneration.ts` forwards current optional inputs: `policy`, `changeRequestTemplate`, `previousTitle`, `linkedContext`, and attachments.
-- `apps/server/src/provider/Drivers/PiDriver.ts` matches the current driver contract.
-- Pi adapter deliberately does not advertise promptless continuation; its rejection of empty turns therefore remains consistent.
-- Web keyboard submissions and primary buttons retain Pi delivery-mode plumbing; mobile selection reaches `onSendMessage(deliveryMode)`.
-
-**Review limits:** I could not compare historical Git trees directly or complete the primary-action/worktree implementation trace. No builds or tests were run. This is not full compatibility clearance.

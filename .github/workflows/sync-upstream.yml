@@ -15,7 +15,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     outputs:
-      ref: ${{ steps.sync.outputs.ref }}
+      ref: ${{ steps.publish.outputs.ref }}
       build_release: ${{ steps.release.outputs.build_release }}
       upstream_tag: ${{ steps.release.outputs.upstream_tag }}
       upstream_url: ${{ steps.release.outputs.upstream_url }}
@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Test sync safeguards
+        run: node --test .github/scripts/sync-upstream.test.mjs
       - id: sync
         name: Rebase onto upstream main
         run: |
@@ -32,18 +34,16 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch upstream main
-          git rebase upstream/main
+          bash .github/scripts/rebase-upstream.sh upstream/main
           if ! git diff --quiet "$base_ref" -- .github/workflows; then
             git restore --source="$base_ref" --staged --worktree .github/workflows
             git commit --amend --no-edit
           fi
-          sync_ref="$(git rev-parse HEAD)"
           if git diff --quiet "$base_ref" -- package.json ':(glob)**/package.json' pnpm-lock.yaml pnpm-workspace.yaml; then
             echo "pnpm_changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "pnpm_changed=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "ref=$sync_ref" >> "$GITHUB_OUTPUT"
 
       - name: Setup Vite+
         if: steps.sync.outputs.pnpm_changed == 'true'
@@ -52,20 +52,32 @@ jobs:
           node-version-file: package.json
           run-install: false
 
-      - name: Verify pnpm lockfile
+      - name: Regenerate and verify pnpm lockfile
         if: steps.sync.outputs.pnpm_changed == 'true'
-        run: vp install --lockfile-only --frozen-lockfile --ignore-scripts
+        run: |
+          vp install --lockfile-only --no-frozen-lockfile --ignore-scripts
+          vp install --lockfile-only --frozen-lockfile --ignore-scripts
 
       - name: Install Nix
         if: steps.sync.outputs.pnpm_changed == 'true'
         uses: DeterminateSystems/nix-installer-action@v21
 
-      - name: Verify pnpm dependency hashes
+      - name: Refresh dependency hashes and verify Nix builds
         if: steps.sync.outputs.pnpm_changed == 'true'
-        run: nix build .#unwrapped .#server --no-link --show-trace
+        run: |
+          node .github/scripts/update-nix-hashes.mjs
+          nix build .#desktop .#server --no-link --show-trace
+          git add pnpm-lock.yaml flake.nix
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(build): refresh generated dependencies after upstream sync"
+          fi
 
-      - name: Push synced main
-        run: git push --force-with-lease=refs/heads/main:${{ steps.sync.outputs.base_ref }} origin HEAD:main
+      - id: publish
+        name: Push synced main
+        run: |
+          git merge-base --is-ancestor upstream/main HEAD
+          git push --force-with-lease=refs/heads/main:${{ steps.sync.outputs.base_ref }} origin HEAD:main
+          echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - id: release
         name: Find latest upstream release
