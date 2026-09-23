@@ -1,0 +1,20 @@
+{
+  "id": "ba8b4b750",
+  "name": "Upstream Sync verfolgen",
+  "command": "gh run watch 34211686756 --repo zepi2509/t3code --exit-status > /tmp/t3-sync-watch.log 2>&1; result=$?; gh run view 34211686756 --repo zepi2509/t3code; exit \"$result\"",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-68567-68567/ba8b4b750.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788860490428,
+  "endTime": 1788861024372,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 69557,
+  "bytesWritten": 2505,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 7200
+}
