@@ -1,0 +1,19 @@
+{
+  "id": "bd58681d5",
+  "name": "Desktop Release erneut prüfen",
+  "command": "gh run watch 34212574473 --repo zepi2509/t3code --exit-status > /tmp/t3-sync2-watch.log 2>&1; result=$?; gh run view 34212574473 --repo zepi2509/t3code; if [ \"$result\" -ne 0 ]; then gh run view 34212574473 --repo zepi2509/t3code --log-failed > /tmp/t3-sync2-failed.log; fi; exit \"$result\"",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-68567-68567/bd58681d5.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788861071590,
+  "endTime": 1788862173066,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 73222,
+  "bytesWritten": 1983,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 7200
+}

@@ -1,0 +1,131 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/lib/public-config" without a file extension (vite.config.ts:14:29). Add the file extension
+  - import "../../scripts/lib/third-party-licenses" without a file extension (vite.config.ts:15:42). Add the file extension
+  - import "./vite/tailwind" without a file extension (vite.config.ts:16:33). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/lib/public-config" without a file extension (vite.config.ts:14:29). Add the file extension
+  - import "../../scripts/lib/third-party-licenses" without a file extension (vite.config.ts:15:42). Add the file extension
+  - import "./vite/tailwind" without a file extension (vite.config.ts:16:33). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.9 /workspace/t3code-pi/apps/web
+
+ ❯ |unit| src/session-logic.test.ts (0 test)
+ ❯ |unit| src/composerDraftStore.test.ts (0 test)
+ ❯ |unit| src/components/chat/ComposerPrimaryActions.test.tsx (0 test)
+ ❯ |unit| src/pendingUserInput.test.ts (0 test)
+ ❯ |unit| src/components/chat/ComposerPendingUserInputPanel.test.tsx (0 test)
+ ❯ |unit| src/lib/contextWindow.test.ts (0 test)
+ ❯ |unit| src/queuedMessageStore.test.ts (0 test)
+ ❯ |unit| src/components/settings/ProviderSettingsForm.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| src/composerDraftStore.test.ts [ src/composerDraftStore.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/composerDraftStore.test.ts:199:1
+    197| }
+    198|
+    199| describe("composerDraftStore assistant citations", () => {
+       | ^
+    200|   beforeEach(resetComposerDraftStore);
+    201|   afterEach(resetComposerDraftStore);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  |unit| src/pendingUserInput.test.ts [ src/pendingUserInput.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/pendingUserInput.test.ts:54:1
+     52| } as const;
+     53|
+     54| describe("resolvePendingUserInputAnswer", () => {
+       | ^
+     55|   it("prefers a custom answer over selected options", () => {
+     56|     expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  |unit| src/queuedMessageStore.test.ts [ src/queuedMessageStore.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/queuedMessageStore.test.ts:24:1
+     22| }
+     23|
+     24| describe("queuedMessageStore", () => {
+       | ^
+     25|   beforeEach(() => {
+     26|     useQueuedMessageStore.setState({ queuesByThreadKey: {}, drainGener…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  |unit| src/session-logic.test.ts [ src/session-logic.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/session-logic.test.ts:65:1
+     63| }
+     64|
+     65| describe("deriveProviderUIState", () => {
+       | ^
+     66|   it("applies keyed status/widget replacement and preserves transient …
+     67|     const state = deriveProviderUIState([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  |unit| src/lib/contextWindow.test.ts [ src/lib/contextWindow.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/lib/contextWindow.test.ts:18:1
+     16| }
+     17|
+     18| describe("contextWindow", () => {
+       | ^
+     19|   it("derives the latest valid context window snapshot", () => {
+     20|     const snapshot = deriveLatestContextWindowSnapshot([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  |unit| src/components/chat/ComposerPendingUserInputPanel.test.tsx [ src/components/chat/ComposerPendingUserInputPanel.test.tsx ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/components/chat/ComposerPendingUserInputPanel.test.tsx:41:1
+     39| }
+     40|
+     41| describe("ComposerPendingUserInputPanel", () => {
+       | ^
+     42|   it("renders the header as a disclosure control for the question body…
+     43|     const markup = renderPanel();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  |unit| src/components/chat/ComposerPrimaryActions.test.tsx [ src/components/chat/ComposerPrimaryActions.test.tsx ]
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+ ❯ src/components/chat/ComposerPrimaryActions.test.tsx:16:1
+     14| } from "./ComposerPrimaryActions";
+     15|
+     16| it("offers explicit mid-turn delivery choices", () => {
+       | ^
+     17|   expect(MID_TURN_DELIVERY_ACTIONS).toEqual([
+     18|     { mode: "steer", label: "Steer now" },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  |unit| src/components/settings/ProviderSettingsForm.test.ts [ src/components/settings/ProviderSettingsForm.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/components/settings/ProviderSettingsForm.test.ts:10:1
+      8| } from "./ProviderSettingsForm";
+      9|
+     10| describe("ProviderSettingsForm helpers", () => {
+       | ^
+     11|   it("derives visible provider config fields from the client definitio…
+     12|     const codex = DRIVER_OPTION_BY_VALUE[ProviderDriverKind.make("code…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  8 failed (8)
+      Tests  no tests
+   Start at  09:08:25
+   Duration  46.68s (transform 15.91s, setup 2.35s, import 0ms, tests 0ms, environment 6ms)
+
