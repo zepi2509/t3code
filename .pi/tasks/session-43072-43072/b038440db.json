@@ -1,0 +1,20 @@
+{
+  "id": "b038440db",
+  "name": "Rebase CI prüfen",
+  "command": "gh run watch 34332296506 --repo zepi2509/t3code --exit-status > /tmp/t3-sync-ci-watch.log 2>&1; result=$?; gh run view 34332296506 --repo zepi2509/t3code; if [ \"$result\" -ne 0 ]; then gh run view 34332296506 --repo zepi2509/t3code --log-failed > /tmp/t3-sync-ci-failed.log; fi; exit \"$result\"",
+  "description": "Watch full CI for the repaired rebase",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-43072-43072/b038440db.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788944288477,
+  "endTime": 1788944720178,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 59110,
+  "bytesWritten": 1722,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 7200
+}

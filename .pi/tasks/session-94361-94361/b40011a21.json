@@ -1,0 +1,20 @@
+{
+  "id": "b40011a21",
+  "name": "Shared compaction tests",
+  "command": "vp test run packages/client-runtime/src/state/compaction.test.ts",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-94361-94361/b40011a21.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788865375236,
+  "endTime": 1788865375258,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 100974,
+  "bytesWritten": 241,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}

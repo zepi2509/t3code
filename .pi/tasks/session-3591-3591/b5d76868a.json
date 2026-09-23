@@ -1,0 +1,20 @@
+{
+  "id": "b5d76868a",
+  "name": "Validate Pi upgrade",
+  "command": "corepack pnpm --filter t3 typecheck && corepack pnpm exec vp test run apps/server/src/provider/Layers/PiRpcClient.test.ts apps/server/src/provider/Layers/PiAdapter.test.ts apps/server/src/provider/Layers/PiAdapter.integration.test.ts apps/server/src/provider/Layers/PiProvider.test.ts apps/server/src/provider/Drivers/PiDriver.test.ts apps/server/src/provider/assets/pi/t3-approvals.test.ts",
+  "description": "Typecheck the server and run focused Pi provider tests",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-3591-3591/b5d76868a.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1790149243338,
+  "endTime": 1790149340623,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 6729,
+  "bytesWritten": 94428,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600
+}

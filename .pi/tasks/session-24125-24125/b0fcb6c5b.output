@@ -1,0 +1,10 @@
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi
+
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  10:17:42
+   Duration  14.44s (transform 2.63s, setup 1.23s, import 11.45s, tests 166ms, environment 0ms)
+

@@ -1,0 +1,18 @@
+{
+  "id": "b22638f6b",
+  "name": "Build final Nix packages",
+  "command": "/nix/store/j823gnvpxh1fjibycmldrspkk3pgivwp-nix-2.20.6/bin/nix --extra-experimental-features 'nix-command flakes' --option build-users-group '' --option sandbox false build .#desktop .#server --no-link --keep-going -L",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-430577-430577/b22638f6b.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789717082277,
+  "endTime": 1789717968931,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 556942,
+  "bytesWritten": 467438,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

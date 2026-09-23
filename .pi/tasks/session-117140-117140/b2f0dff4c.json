@@ -1,0 +1,19 @@
+{
+  "id": "b2f0dff4c",
+  "name": "Verify subagent rollback",
+  "command": "export PATH=\"$PWD/node_modules/.bin:$PATH\"; vp test run apps/server/src/provider/Layers/PiAdapter.test.ts apps/server/src/provider/Layers/PiAdapter.integration.test.ts apps/server/src/provider/Layers/PiTurnUsage.test.ts apps/server/src/provider/Layers/PiRpcClient.test.ts apps/mobile/src/lib/threadActivity.test.ts apps/mobile/src/state/thread-outbox.test.ts apps/mobile/src/state/use-thread-outbox-drain.test.ts && node --input-type=module -e 'import {spawnSync} from \"node:child_process\"; import {writeFileSync} from \"node:fs\"; let failed=false; for(const scope of [\"server\",\"mobile\"]){const r=spawnSync(\"tsc\",[\"--noEmit\",\"-p\",`apps/${scope}/tsconfig.json`],{encoding:\"utf8\",maxBuffer:20_000_000}); const out=(r.stdout??\"\")+(r.stderr??\"\"); writeFileSync(`/tmp/t3-pi-no-subagents-${scope}.log`,out); console.log(`${scope} TYPECHECK_EXIT=${r.status}`); console.log(out.split(\"\\n\").filter(l=>l.includes(\"error TS\")).join(\"\\n\")); failed ||= r.status!==0;} process.exitCode=failed?1:0;'",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-117140-117140/b2f0dff4c.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788873089008,
+  "endTime": 1788873173964,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 125186,
+  "bytesWritten": 424,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600
+}

@@ -1,0 +1,17 @@
+ProviderService.ts-1877-               method: "turn/start",
+ProviderService.ts-1878-               detail: `Provider did not finish context compaction within ${COMPACTION_COMPLETION_TIMEOUT}.`,
+ProviderService.ts-1879-               cause,
+ProviderService.ts-1880-             }),
+ProviderService.ts-1881-         ),
+ProviderService.ts-1882-       );
+ProviderService.ts-1883-       const terminal = yield* (
+ProviderService.ts-1884-         compaction.type === "native"
+ProviderService.ts:1885:           ? awaitNativeCompaction(compaction.start(routed.threadId, modelSelection))
+ProviderService.ts-1886-           : Effect.gen(function* () {
+ProviderService.ts-1887-               const turn = yield* sendTurn({
+ProviderService.ts-1888-                 threadId,
+ProviderService.ts-1889-                 input: compaction.command,
+ProviderService.ts-1890-                 ...(modelSelection !== undefined ? { modelSelection } : {}),
+ProviderService.ts-1891-               }).pipe(
+ProviderService.ts-1892-                 Effect.onError(() =>
+ProviderService.ts-1893-                   Effect.forEach(pending.earlyEvents.splice(0), publishRuntimeEvent, {

@@ -1,0 +1,20 @@
+{
+  "id": "b15482c9a",
+  "name": "Web runtime typechecks",
+  "command": "export PATH=\"$PWD/node_modules/.bin:$PATH\"; (cd packages/client-runtime && tsc --noEmit); runtime_status=$?; (cd apps/web && tsc --noEmit); web_status=$?; echo \"RUNTIME_EXIT=$runtime_status WEB_EXIT=$web_status\"; test \"$runtime_status\" = 0 && test \"$web_status\" = 0",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-94361-94361/b15482c9a.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788865620974,
+  "endTime": 1788865741641,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 102434,
+  "bytesWritten": 23757,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}

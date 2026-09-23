@@ -1,0 +1,5 @@
+mise ERROR No version is set for shim: vp
+Set a global default version with one of the following:
+mise use -g vp@0.2.2
+mise ERROR Version: 2026.8.14 linux-x64 (2026-08-26)
+mise ERROR Run with --verbose or MISE_VERBOSE=1 for more information

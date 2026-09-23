@@ -1,0 +1,31 @@
+Warning: No project session found with id 'delegate-87c5b6fc83ed1b034e06848631043357'; creating a new session with that id.
+Ja – **zwei klare Verbesserungen und ein bedingter Ausbau** sind im aktuellen Code belegbar. Ohne Git-Vergleich kann ich deren Einführung durch bestimmte Upstream-Commits nicht bestätigen.
+
+### 1. Pi-Steering/Follow-up auf Mobile vervollständigen — höchste Priorität
+**Web bereits integriert:** `ChatComposer.tsx:5853–5854` aktiviert Steering für Pi/Codex und Follow-up für Pi. `chat/ComposerPrimaryActions.tsx:186–229` bietet „Steer“/„Queue“ samt Auswahl; `ChatView.tsx:7062–7078` reicht `deliveryMode` durch.
+
+**Mobile fehlt die explizite Wahl:** `apps/mobile/src/state/use-thread-composer-state.ts:393–407` speichert Nachrichten ohne `deliveryMode`; `use-thread-outbox-drain.ts:796–813` sendet ebenfalls ohne dieses Feld.
+
+Wichtig: **Mobile-Steering fehlt nicht grundsätzlich!** Die Outbox sendet auch bei laufenden Threads (`thread-outbox-model.ts:166–187`); Pi behandelt Nachrichten während eines Turns bereits als Steering (`apps/server/src/provider/Layers/PiAdapter.ts:1677–1723`). Was fehlt, ist gezielt **„nach Abschluss senden“**.
+
+**Empfehlung:** Mobile-Auswahl an denselben `deliveryMode`-Vertrag anschließen und diesen in der persistenten Outbox erhalten. Keine zweite Queue-Semantik erfinden.
+
+### 2. Compaction-Lebenszyklus vereinheitlichen — sinnvoll, aber kein bloßer Austausch eines Aufrufs
+**Pi bereits integriert:** `PiProvider.ts:254–259` veröffentlicht `/compact` und `supportsManualCompaction: true`; `PiAdapter.ts:1803–1819,2033–2034` unterstützt native Kompaktierung. Der gemeinsame Serverpfad erkennt `/compact` und ruft `providerService.compactThread` auf (`ProviderCommandReactor.ts:1377–1414`). **Pi braucht also nicht erst native Compaction.**
+
+**Verbleibende Doppelarbeit:**
+- Web injiziert `/compact` vorübergehend in den Composer und räumt danach auf: `chat/ChatComposer.tsx:3101–3110`.
+- Web rekonstruiert den Busy-Status aus Nachrichten/Request-IDs: `ChatView.tsx:2975–2999`.
+- Mobile wiederholt diese Logik: `state/use-thread-composer-state.ts:232–273`.
+- Gleichzeitig existiert der typisierte gemeinsame Befehl `compactThread`: `packages/client-runtime/src/operations/commands.ts:303–308`, exponiert über `state/threadCommands.ts:198–200`.
+
+**Empfehlung:** Compaction-Status/Korrelation gemeinsam führen und danach Buttons direkt an den typisierten Befehl anschließen. **Nicht blind umstellen:** Der direkte `thread.compact`-Reaktor (`ProviderCommandReactor.ts:1704–1738`) besitzt derzeit nicht dieselben Guards, Session-Vorbereitung und Request-ID-Korrelation wie der `/compact`-Turnpfad. Sonst wäre der vermeintliche Cleanup eine Regression.
+
+### 3. Subagent-Anzeige: gemeinsamen Runtime-Fold nutzen, statt Pi-Sondertransport wiederzubeleben
+**Web bereits integriert:** `ChatView.tsx:2680–2690` verwendet `foldSubagentActivities` und `deriveAgentPanelModel` aus `packages/client-runtime/src/state/subagentRuntime.ts`. Dort gibt es gemeinsame Lifecycle-, Workflow- und Token-Aggregation, beispielsweise `:825–852`.
+
+**Mobile ist noch separat:** `apps/mobile/src/lib/threadActivity.ts:103–117` beschreibt ausdrücklich die eigene Agent-Zusammenfassung ohne Agents-Sheet; `:462–523` interpretiert Task-Lifecycle erneut.
+
+**Empfehlung bei gewünschter Pi-Subagent-Parität:** Mobile auf dem gemeinsamen Runtime-Modell aufbauen; Pi-Daten am Adapter in die erwarteten `task.*`-Aktivitäten normalisieren. Voraussetzung prüfen: Der alte `PI_SUBAGENT_ASYNC_JSON`-Transport wird im Pi-Adapter derzeit ausdrücklich verworfen (`PiAdapter.ts:1001–1005`). Der gemeinsame Web-Fold allein beweist deshalb **keine vollständige Pi-Subagent-Anbindung**.
+
+**Nicht als offene Baustelle verkaufen:** Pi-Fragen nutzen bereits den gemeinsamen Request-Weg: Adapter erzeugt `user-input.requested` (`PiAdapter.ts:1134–1164`), Web konsumiert `derivePendingRequests` (`ChatView.tsx:2692–2694`). Ebenso ist Web-Steering schon übernommen.

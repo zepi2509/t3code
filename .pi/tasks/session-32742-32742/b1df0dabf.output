@@ -1,0 +1,9 @@
+[1m[2mnote:[0m[0m You are running [94m`vp fmt`[39m as a Vite+ built-in command. If you meant to run the fmt npm script, use [94m`vpr fmt`[39m instead.
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 759ms on 3 files using 4 threads.
+[WARN] Unsupported engine: wanted: {"node":"^24.13.1"} (current: {"node":"v22.23.1","pnpm":"11.10.0"})
+Scope: all 16 workspace projects
+✓ Lockfile passes supply-chain policies (verified 6m ago)
+Done in 6.3s using pnpm v11.10.0

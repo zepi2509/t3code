@@ -1,0 +1,20 @@
+{
+  "id": "bee6b63b1",
+  "name": "Install Pi dependency",
+  "command": "corepack pnpm install",
+  "description": "Install workspace dependencies after upgrading Pi to 0.87.0",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-3591-3591/bee6b63b1.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1790149075015,
+  "endTime": 1790149171836,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 5922,
+  "bytesWritten": 3943,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}

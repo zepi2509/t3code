@@ -826,7 +826,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
         }
 
         case "turn_end": {
-          // agent_end drives completion, not turn_end (pi runs many internal turns per prompt)
+          // agent_settled drives completion, not turn_end (Pi runs many internal turns per prompt)
           return;
         }
 

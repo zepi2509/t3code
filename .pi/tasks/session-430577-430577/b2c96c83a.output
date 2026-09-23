@@ -1,0 +1,419 @@
+warning: Git tree '/workspace/t3code-pi' is dirty
+copying path '/nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source' from 'https://cache.nixos.org'...
+proot warning: ptrace(PEEKDATA): Bad address
+error:
+       … while calling the 'derivationStrict' builtin
+         at <nix/derivation-internal.nix>:9:12:
+            8|
+            9|   strict = derivationStrict drvAttrs;
+             |            ^
+           10|
+
+       … while evaluating derivation 't3code-unwrapped-pnpm-deps'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:651:11
+
+       … while evaluating attribute 'builder' of derivation 't3code-unwrapped-pnpm-deps'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:692:11:
+          691|
+          692|           builder = attrs.realBuilder or stdenvShell;
+             |           ^
+          693|           args =
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/linux/default.nix:712:17:
+          711|
+          712|         shell = cc.shell;
+             |                 ^
+          713|
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:1007:14:
+         1006|         mapAttrs (
+         1007|           n: v:
+             |              ^
+         1008|           assert
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/build-support/cc-wrapper/default.nix:1019:13:
+         1018|     # TODO(@sternenseemann): rename env var via stdenv rebuild
+         1019|     shell = getBin runtimeShell + runtimeShell.shellPath or "";
+             |             ^
+         1020|     gnugrep_bin = optionalString (!nativeTools) gnugrep;
+
+       … while calling 'getOutput'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/attrsets.nix:1936:13:
+         1935|   getOutput =
+         1936|     output: pkg:
+             |             ^
+         1937|     if !pkg ? outputSpecified || !pkg.outputSpecified then pkg.${output} or pkg.out or pkg else pkg;
+
+       … while evaluating derivation 'bash-5.3p9'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:651:11
+
+       … while evaluating attribute 'builder' of derivation 'bash-5.3p9'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:692:11:
+          691|
+          692|           builder = attrs.realBuilder or stdenvShell;
+             |           ^
+          693|           args =
+
+       … while evaluating derivation 'bash-static-5.3'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:56:18
+
+       … while evaluating attribute 'PATH' of derivation 'bash-static-5.3'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:11:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |           ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:18:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |                  ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'gcc-15.2.0'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:56:18
+
+       … while evaluating attribute 'PATH' of derivation 'gcc-15.2.0'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:11:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |           ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:18:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |                  ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'gcc-10.4.0'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:56:18
+
+       … while evaluating attribute 'PATH' of derivation 'gcc-10.4.0'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:11:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |           ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:18:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |                  ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'gcc-cxx-4.6.4'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:56:18
+
+       … while evaluating attribute 'PATH' of derivation 'gcc-cxx-4.6.4'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:11:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |           ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:18:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |                  ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'gcc-4.6.4'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:56:18
+
+       … while evaluating attribute 'PATH' of derivation 'gcc-4.6.4'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:11:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |           ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/default.nix:79:18:
+           78|           SHELL = "${bash}/bin/bash";
+           79|           PATH = lib.makeBinPath (
+             |                  ^
+           80|             (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'tinycc-musl-unstable-2025-12-03-compiler'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/2.nix:86:18
+
+       … while evaluating attribute 'PATH' of derivation 'tinycc-musl-unstable-2025-12-03-compiler'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/2.nix:109:11:
+          108|           SHELL = "${bash_2_05}/bin/bash";
+          109|           PATH = lib.makeBinPath (
+             |           ^
+          110|             (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/bash/2.nix:109:18:
+          108|           SHELL = "${bash_2_05}/bin/bash";
+          109|           PATH = lib.makeBinPath (
+             |                  ^
+          110|             (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'bash-2.05b'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:35:16
+
+       … while evaluating attribute 'PATH' of derivation 'bash-2.05b'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:45:9:
+           44|
+           45|         PATH = lib.makeBinPath (
+             |         ^
+           46|           (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:45:16:
+           44|
+           45|         PATH = lib.makeBinPath (
+             |                ^
+           46|           (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'tinycc-mes-unstable-2025-12-03'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:35:16
+
+       … while evaluating attribute 'PATH' of derivation 'tinycc-mes-unstable-2025-12-03'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:45:9:
+           44|
+           45|         PATH = lib.makeBinPath (
+             |         ^
+           46|           (env.nativeBuildInputs or [ ])
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:45:16:
+           44|
+           45|         PATH = lib.makeBinPath (
+             |                ^
+           46|           (env.nativeBuildInputs or [ ])
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'kaem-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'PATH' of derivation 'kaem-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:29:3:
+           28|   ];
+           29|   PATH = lib.makeBinPath [ mescc-tools-extra ];
+             |   ^
+           30|
+
+       … from call site
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/kaem/default.nix:29:10:
+           28|   ];
+           29|   PATH = lib.makeBinPath [ mescc-tools-extra ];
+             |          ^
+           30|
+
+       … while calling anonymous lambda
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/lib/strings.nix:611:13:
+          610|     in
+          611|     subDir: pkgs:
+             |             ^
+          612|     concatStringsSep ":" (
+
+       … while evaluating derivation 'mescc-tools-extra-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'mescc-tools-extra-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-extra/default.nix:21:3:
+           20|   pname = "mescc-tools-extra";
+           21|   builder = kaem-unwrapped;
+             |   ^
+           22|   args = [
+
+       … while evaluating derivation 'kaem-unwrapped-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'kaem-unwrapped-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'kaem.hex2-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'kaem.hex2-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'kaem.M1-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'kaem.M1-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'M2-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'M2-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'M2-0-0.hex2-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'M2-0-0.hex2-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'M2-0.hex2-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'M2-0.hex2-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'M2-0-0.M1-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'M2-0-0.M1-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'M2-0.M1-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'args' of derivation 'M2-0.M1-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'M2-0.c-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'M2-0.c-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'catm-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'catm-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'hex2-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'hex2-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'hex1-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'hex1-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/mescc-tools-boot.nix:53:14:
+           52|     derivationWithMeta {
+           53|       inherit
+             |              ^
+           54|         pname
+
+       … while evaluating derivation 'hex0-1.9.1'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/utils.nix:32:11
+
+       … while evaluating attribute 'builder' of derivation 'hex0-1.9.1'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/os-specific/linux/minimal-bootstrap/stage0-posix/hex0.nix:32:3:
+           31|   pname = "hex0";
+           32|   builder = hex0-seed;
+             |   ^
+           33|   args = [
+
+       … while evaluating derivation 'hex0-seed'
+         whose name attribute is located at <nix/fetchurl.nix>:25:10
+
+       error: opening file '/nix/store/j76if9fyh6aw41qvc8nqr9c8ha4azayn-hex0-seed.drv': Bad address

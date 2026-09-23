@@ -1,0 +1,6 @@
+unwrapped exit=1
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-gXZWre/PkSL/G7teuf2xTAOik+BF6mWY/UWGrDcpANs=
+server exit=1
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-NnIVs/VrM3KEG59Hs9ylmZTNOPHlsdK1wE30gv77DIo=

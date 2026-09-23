@@ -1,0 +1,20 @@
+{
+  "id": "be7745389",
+  "name": "Sync Lockfile aktualisieren",
+  "command": "/home/zepi/.local/share/mise/installs/vp/0.2.2/node_modules/.bin/vp install --lockfile-only --ignore-scripts > /tmp/t3-sync-lock.log 2>&1",
+  "description": "Regenerate the pnpm lockfile in the isolated sync worktree",
+  "status": "killed",
+  "outputPath": ".pi/tasks/session-43072-43072/be7745389.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788942460817,
+  "endTime": 1788942469963,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 45531,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600
+}

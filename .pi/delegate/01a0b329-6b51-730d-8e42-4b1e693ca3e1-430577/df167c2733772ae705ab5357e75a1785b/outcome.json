@@ -1,0 +1,14 @@
+{
+  "error_code": null,
+  "launch_nonce": "0cfe2c49ef39a432d1767e498386f218",
+  "observed_task_status": "completed",
+  "outcome": {
+    "answerBytes": 2853,
+    "answerSha256": "9e1ad14de1e8307c0e67eb3182b4f94246568b57cf9ef7572237c42d071ce5c4",
+    "status": "committed",
+    "toolCalls": 29,
+    "turns": 8
+  },
+  "schema_version": "pi-background-tasks.delegate-outcome.v1",
+  "task_id": "df167c2733772ae705ab5357e75a1785b"
+}

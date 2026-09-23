@@ -1,0 +1,4 @@
+apps/web/src/composerDraftStore.ts:1888:10: warning t3code(no-inline-schema-compile): Hoist Schema.is(...) to module scope: the compiled function is rebuilt on every call. Move it to a module-level const.
+apps/web/src/components/chat/ChatComposer.tsx:99:3: warning eslint(no-unused-vars): Identifier 'isInsideComposerFloatingLayer' is imported but never used. help: Consider removing this import.
+apps/web/src/components/chat/ChatComposer.tsx:932:3: warning eslint(no-unused-vars): Identifier 'FileIcon' is imported but never used. help: Consider removing this import.
+packages/contracts/src/orchestration.test.ts:742:34: warning t3code(no-inline-schema-compile): Hoist Schema.encodeEffect(...) to module scope: the compiled function is rebuilt on every call. Move it to a module-level const.

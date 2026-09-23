@@ -1,0 +1,18 @@
+{
+  "id": "b622b4378",
+  "name": "Prepare native build tools",
+  "command": "set -e\nsudo -n apt-get update\nsudo -n apt-get install -y pkg-config libsecret-1-dev xz-utils\nmkdir -p /tmp/t3code-nix-latest-sync\ncurl --fail --location --silent --show-error https://releases.nixos.org/nix/nix-2.28.5/nix-2.28.5-x86_64-linux.tar.xz -o /tmp/t3code-nix-latest-sync/nix.tar.xz\ntar -xJf /tmp/t3code-nix-latest-sync/nix.tar.xz -C /tmp/t3code-nix-latest-sync\nsudo -n install -d -o \"$(id -u)\" -g \"$(id -g)\" /nix\n/tmp/t3code-nix-latest-sync/nix-2.28.5-x86_64-linux/install --no-daemon --no-modify-profile\n\"$HOME/.nix-profile/bin/nix\" --version",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-32742-32742/b622b4378.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1790012835553,
+  "endTime": 1790012912679,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 37720,
+  "bytesWritten": 18889,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
