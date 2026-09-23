@@ -187,24 +187,29 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       <div className="flex items-center gap-1.5">
         {hasSendableContent && supportsSteer ? (
           <div className="flex items-center">
-            <Button
+            <button
               type="button"
-              size="sm"
-              className={supportsFollowUp ? "rounded-l-full rounded-r-none" : "rounded-full"}
+              className={cn(
+                messageActionPillClassName,
+                "h-8 px-3 sm:h-7",
+                supportsFollowUp && "rounded-r-none",
+              )}
               {...pointerFocusProps}
               disabled={isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable}
               onClick={() => onSend(primaryDeliveryMode)}
             >
               {primaryDeliveryMode === "follow-up" ? "Queue" : "Steer"}
-            </Button>
+            </button>
             {supportsFollowUp ? (
               <Menu>
                 <MenuTrigger
                   render={
-                    <Button
+                    <button
                       type="button"
-                      size="sm"
-                      className="rounded-l-none rounded-r-full border-l-white/12 px-2"
+                      className={cn(
+                        messageActionPillClassName,
+                        "h-8 rounded-l-none border-l border-message-action-foreground/12 px-2 sm:h-7",
+                      )}
                       {...pointerFocusProps}
                       disabled={
                         isSendBusy || isSendDisabled || isConnecting || isEnvironmentUnavailable
