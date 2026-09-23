@@ -1,0 +1,75 @@
+{
+  "answer": {
+    "blocks": [
+      {
+        "byte_length": 2853,
+        "data_base64": "Rm91bmQgKip0aHJlZSBjb25jcmV0ZSBiZWhhdmlvcmFsIEFQSSBhZGFwdGF0aW9ucyoqLCBhbGwgaW4gYGFwcHMvc2VydmVyL3NyYy90ZXh0R2VuZXJhdGlvbi9QaVRleHRHZW5lcmF0aW9uLnRzYC4gVGhleSBhcmUgc2lsZW50IG9taXNzaW9ucyByYXRoZXIgdGhhbiBUeXBlU2NyaXB0IGVycm9ycyBiZWNhdXNlIHVwc3RyZWFtIGFkZGVkIG9wdGlvbmFsIGZpZWxkcy4KCjEuICoqQ29tbWl0LWdlbmVyYXRpb24gcG9saWN5IGlzIGlnbm9yZWQqKiDigJQgbGluZXMgKioyMDTigJMyMTAqKiwgYGJ1aWxkQ29tbWl0TWVzc2FnZVByb21wdGAuCiAgIC0gQWRkIGBwb2xpY3k6IGlucHV0LnBvbGljeWAuCiAgIC0gQ3VycmVudCB1cHN0cmVhbSByZWZlcmVuY2U6IGBDdXJzb3JUZXh0R2VuZXJhdGlvbi50czoxNzLigJMxODBgLgoKMi4gKipQUi1nZW5lcmF0aW9uIHBvbGljeSBhbmQgY2hhbmdlLXJlcXVlc3QgdGVtcGxhdGUgYXJlIGlnbm9yZWQqKiDigJQgbGluZXMgKioyMzDigJMyMzgqKiwgYGJ1aWxkUHJDb250ZW50UHJvbXB0YC4KICAgLSBBZGQgYHBvbGljeTogaW5wdXQucG9saWN5YCBhbmQgYGNoYW5nZVJlcXVlc3RUZW1wbGF0ZTogaW5wdXQuY2hhbmdlUmVxdWVzdFRlbXBsYXRlYC4KICAgLSBCb3RoIGFyZSBub3cgcGFydCBvZiBgUHJDb250ZW50R2VuZXJhdGlvbklucHV0YCBpbiBgVGV4dEdlbmVyYXRpb24udHM6MzTigJM0NGA7IEN1cnNvciBhbHJlYWR5IGZvcndhcmRzIHRoZW0uCgozLiAqKlRocmVhZC10aXRsZSBlbnJpY2htZW50L3JlZmluZW1lbnQgaXMgZHJvcHBlZCoqIOKAlCBsaW5lcyAqKjI3MOKAkzI4NSoqLCBgZ2VuZXJhdGVUaHJlYWRUaXRsZWAuCiAgIC0gRm9yd2FyZCBgcHJldmlvdXNUaXRsZTogaW5wdXQucHJldmlvdXNUaXRsZWAgYW5kIGBsaW5rZWRDb250ZXh0OiBpbnB1dC5saW5rZWRDb250ZXh0YCB0byBgYnVpbGRUaHJlYWRUaXRsZVByb21wdGAuCiAgIC0gUHJlc2VydmUgdGhlIGdlbmVyYXRlZCByZWZpbmVtZW50IHNpZ25hbDoKICAgICBgYGB0cwogICAgIHJldHVybiB7CiAgICAgICB0aXRsZTogc2FuaXRpemVUaHJlYWRUaXRsZShnZW5lcmF0ZWQudGl0bGUpLAogICAgICAgLi4uKGdlbmVyYXRlZC5uZWVkc1JlZmluZW1lbnQgPyB7IG5lZWRzUmVmaW5lbWVudDogdHJ1ZSB9IDoge30pLAogICAgIH07CiAgICAgYGBgCiAgIC0gVGhlIHNoYXJlZCBzZXJ2aWNlIG5vdyByZXNvbHZlcyBsaW5rZWQgY29udGV4dCBiZWZvcmUgY2FsbGluZyB0aGUgcHJvdmlkZXIgKGBUZXh0R2VuZXJhdGlvbi50c2AsIGBtYWtlLmdlbmVyYXRlVGhyZWFkVGl0bGVgKSwgc28gUGkgY3VycmVudGx5IGRpc2NhcmRzIHdvcmsgYWxyZWFkeSBwZXJmb3JtZWQgdXBzdHJlYW0uCiAgIC0gUmVmZXJlbmNlIGltcGxlbWVudGF0aW9uOiBgQ3Vyc29yVGV4dEdlbmVyYXRpb24udHM6MjU04oCTMjc2YC4KCioqT3RoZXIgaW5zcGVjdGVkIGludGVyZmFjZXMgYXBwZWFyIGNvbXBhdGlibGU7IG5vIG1hbmRhdG9yeSByZXdyaXRlIGZvdW5kOioqCi0gYFBpRHJpdmVyLnRzYCBzYXRpc2ZpZXMgdGhlIGN1cnJlbnQgYFByb3ZpZGVyRHJpdmVyYC9gUHJvdmlkZXJJbnN0YW5jZWAgc2hhcGUuIEl0cyBsb2NhbCBpZGVudGl0eSBzdGFtcGVyIGR1cGxpY2F0ZXMgdGhlIG5ldyBgRHJpdmVycy9pbnN0YW5jZUlkZW50aXR5LnRzYDsgb3B0aW9uYWxseSByZXBsYWNlIGl0IHdpdGggdGhhdCBoZWxwZXIsIHBhc3NpbmcgYGRyaXZlcktpbmQ6IERSSVZFUl9LSU5EYC4gVGhpcyBpcyBjbGVhbnVwLCBub3QgYSBjb21wYXRpYmlsaXR5IGZpeC4KLSBgU2VydmljZXMvUGlBZGFwdGVyLnRzYCBpbmhlcml0cyB0aGUgY3VycmVudCBhZGFwdGVyIGNvbnRyYWN0LiBUaGUgbmV3IGBwcm9tcHRsZXNzVHVybkNvbnRpbnVhdGlvbmAgY2FwYWJpbGl0eSBpcyBvcHRpb25hbDsgbGVhdmluZyBpdCBhYnNlbnQgaXMgY29ycmVjdCBiZWNhdXNlIFBpIGN1cnJlbnRseSByZWplY3RzIGVtcHR5IHR1cm5zIChgTGF5ZXJzL1BpQWRhcHRlci50czoxNjg34oCTMTY5M2ApLiBEbyBub3QgYWR2ZXJ0aXNlIGl0IHdpdGhvdXQgaW1wbGVtZW50aW5nIG5hdGl2ZSBjb250aW51YXRpb24uCi0gTmF0aXZlIGNvbXBhY3Rpb27igJlzIG9wdGlvbmFsIG1vZGVsLXNlbGVjdGlvbiBhcmd1bWVudCBkb2VzIG5vdCBpbnZhbGlkYXRlIFBp4oCZcyBvbmUtYXJndW1lbnQgaGFuZGxlci4KLSBQaSBydW50aW1lIHJhdy1zb3VyY2UgdmFsdWVzIHJlbWFpbiBleHBsaWNpdGx5IGFjY2VwdGVkIChgcGFja2FnZXMvY29udHJhY3RzL3NyYy9wcm92aWRlclJ1bnRpbWUudHM6MzHigJMzMmApLgotIFBpIHRlcm1pbmFsIGV2ZW50cyBhbHJlYWR5IGNhcnJ5IGB0b2tlblVzYWdlYCAoYFBpQWRhcHRlci50czo0NTDigJM0NjFgKSwgdXNpbmcgdGhlIGN1cnJlbnQgYFR1cm5Ub2tlblVzYWdlYCBzdHJ1Y3R1cmUgaW4gYFBpVHVyblVzYWdlLnRzYDsgbm8gb2J2aW91cyBzY2hlbWEgYWRhcHRhdGlvbiBuZWVkZWQuCi0gSW5zdGFuY2UgSURzIGFyZSBpbmNsdWRlZCBpbiBpbnNwZWN0ZWQgc2Vzc2lvbi9ydW50aW1lIGV2ZW50IHByb2R1Y2Vycy4KClJlY29tbWVuZGVkIGZvY3VzZWQgY2hlY2tzOiBQaSB0ZXh0LWdlbmVyYXRpb24gdGVzdHMgYXNzZXJ0aW5nIHBvbGljeS90ZW1wbGF0ZSBwcm9tcHQgaW5jbHVzaW9uIGFuZCB0aXRsZSBjb250ZXh0L3JlZmluZW1lbnQgcHJvcGFnYXRpb24sIGZvbGxvd2VkIGJ5IGV4aXN0aW5nIFBpIGFkYXB0ZXIvcnVudGltZS1pbmdlc3Rpb24gdGVzdHMuICoqTm8gdGVzdHMgb3IgdHlwZWNoZWNrIGV4ZWN1dGVkOyByZWFkLW9ubHkgcmV2aWV3LioqIEV4Y2x1ZGVkIHRoZSByZXF1ZXN0ZWQgcmVhY3RvciBhbmQgd2ViL21vYmlsZSBjb25mbGljdHMu",
+        "kind": "text",
+        "sha256": "9e1ad14de1e8307c0e67eb3182b4f94246568b57cf9ef7572237c42d071ce5c4"
+      }
+    ],
+    "byte_length": 2853,
+    "encoding": "utf-8",
+    "sha256": "9e1ad14de1e8307c0e67eb3182b4f94246568b57cf9ef7572237c42d071ce5c4"
+  },
+  "directive_sha256": "893e94cee958aef8680bc6aab44851dbb910c65cc4069363f8bd172e58a62c49",
+  "launch_nonce": "0cfe2c49ef39a432d1767e498386f218",
+  "route": { "model": "gpt-6-astra", "provider": "openai-codex" },
+  "route_attestations": [
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "toolUse" },
+    { "model": "gpt-6-astra", "provider": "openai-codex", "stop_reason": "stop" }
+  ],
+  "schema_version": "pi-background-tasks.delegate-result.v1",
+  "seed_sha256": "68985e45a1c09f79061f5433510412cf4c00ea287f5f61c3b73dfb9b2198f807",
+  "spilled_artifacts": [
+    {
+      "artifact": "spill/t0007-c0000-call_UwjtdNEVXZMJ0fgJ1XLKeHbg-fc_001d5f770549371e016aacdd79d6f88.bin",
+      "byte_length": 5937,
+      "content_format": "single_text_utf8",
+      "schema_version": "pi-background-tasks.delegate-receipt.v1",
+      "sha256": "1030c02e607759e60d4d0f09c1b1b8793d2e735edde926c561be04d9c464d505",
+      "source_call_index": 0,
+      "tool_call_id": "call_UwjtdNEVXZMJ0fgJ1XLKeHbg|fc_001d5f770549371e016aacdd79d6f887d2bd76cb3c6f9ea9a0",
+      "tool_name": "read",
+      "turn_sequence": 7
+    },
+    {
+      "artifact": "spill/t0007-c0001-call_DkjbvwzD5OnqSvHCDBfyMdTP-fc_001d5f770549371e016aacdd79d70c8.bin",
+      "byte_length": 10351,
+      "content_format": "single_text_utf8",
+      "schema_version": "pi-background-tasks.delegate-receipt.v1",
+      "sha256": "38334672dfa08ba7af5b41c3761b5e5c7cd067fb90d3ff9bef3802bcdb2f76cb",
+      "source_call_index": 1,
+      "tool_call_id": "call_DkjbvwzD5OnqSvHCDBfyMdTP|fc_001d5f770549371e016aacdd79d70c87d2b4ce50f49b733c99",
+      "tool_name": "read",
+      "turn_sequence": 7
+    }
+  ],
+  "stop_reason": "stop",
+  "task_id": "df167c2733772ae705ab5357e75a1785b",
+  "tool_calls": 29,
+  "turns": 8,
+  "usage": {
+    "status": "observed",
+    "usage": {
+      "cacheRead": 155264,
+      "cacheWrite": 0,
+      "cost": {
+        "cacheRead": 0.155264,
+        "cacheWrite": 0,
+        "input": 0.95479,
+        "output": 0.0786,
+        "total": 1.188654
+      },
+      "input": 95479,
+      "output": 1572,
+      "totalTokens": 252315
+    }
+  }
+}

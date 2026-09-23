@@ -1,0 +1,20 @@
+{
+  "id": "b5cf3c1a3",
+  "name": "Reparierten Sync prüfen",
+  "command": "gh run watch 34332294641 --repo zepi2509/t3code --exit-status > /tmp/t3-sync-final-watch.log 2>&1; result=$?; gh run view 34332294641 --repo zepi2509/t3code; if [ \"$result\" -ne 0 ]; then gh run view 34332294641 --repo zepi2509/t3code --log-failed > /tmp/t3-sync-final-failed.log; fi; exit \"$result\"",
+  "description": "Watch the repaired upstream sync and any release jobs",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-43072-43072/b5cf3c1a3.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788944288449,
+  "endTime": 1788945404085,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 59104,
+  "bytesWritten": 1985,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 7200
+}

@@ -1,0 +1,19 @@
+{
+  "id": "b5aea5f5c",
+  "name": "Run native Nix hash verification",
+  "command": "set -e\nif [ -e /nix ]; then echo 'Refusing to replace an existing Nix installation'; exit 1; fi\nsudo -n install -d -o \"$(id -u)\" -g \"$(id -g)\" /nix\ncp -a /tmp/t3code-nix-sync/.nix-portable/nix/. /nix/\n/nix/store/j823gnvpxh1fjibycmldrspkk3pgivwp-nix-2.20.6/bin/nix --extra-experimental-features 'nix-command flakes' --option build-users-group '' --option sandbox false build .#unwrapped.pnpmDeps .#server.pnpmDeps --no-link --keep-going",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-430577-430577/b5aea5f5c.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715851076,
+  "endTime": 1789716277593,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 454664,
+  "bytesWritten": 18939,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
