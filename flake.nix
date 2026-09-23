@@ -16,6 +16,13 @@
         inherit (pkgs) lib;
         baseVersion = (builtins.fromJSON (builtins.readFile ./apps/server/package.json)).version;
         version = "${baseVersion}-unstable-${self.shortRev or self.dirtyShortRev or "dev"}";
+        # Match the pinned SPDX revision/cache version in scripts/lib/third-party-licenses.ts.
+        spdxLicenseList = pkgs.fetchFromGitHub {
+          owner = "spdx";
+          repo = "license-list-data";
+          rev = "c4a7237ec8f4654e867546f9f409749300f1bf4c";
+          hash = "sha256-FbeeEBAg9ih6DkAsXdU6ruZwkC7A2u2zYBvblpl54q0=";
+        };
         desktopUnwrapped = pkgs.t3code.unwrapped.overrideAttrs (final: previous: {
           inherit version;
           src = self;
@@ -33,6 +40,8 @@
                 --replace-fail '"/bin/bash"' '"${lib.getExe pkgs.bashInteractive}"'
             '';
           preBuild = ''
+            mkdir -p .generated/third-party-licenses/spdx
+            cp -r ${spdxLicenseList}/json/details .generated/third-party-licenses/spdx/v3.28.0
             export npm_config_nodedir=${pkgs.nodejs}
             export ELECTRON_SKIP_BINARY_DOWNLOAD=1
             pnpm rebuild --pending "''${pnpmInstallFlags[@]}" --filter '!@t3tools/monorepo'
@@ -45,7 +54,7 @@
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
             fetcherVersion = 4;
-            hash = "sha256-AB8yu7wQPIY6QaP+sjyVkYVmDAbw6w10OgLBeC4O83E=";
+            hash = "sha256-iFRzDNVdmX/RF5y+hTgrY++tNrQXBxD+ZOcurzp2hzY=";
           };
         });
         server = desktopUnwrapped.overrideAttrs (final: previous: {
@@ -59,7 +68,7 @@
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
             fetcherVersion = 4;
-            hash = "sha256-5AaCmocVyR3XgLIdIhXo/TGkW8uomBeK++UcQrt4YjQ=";
+            hash = "sha256-EkQZR1iyP1Oua2UhlwqGF7SekVzaxzd6G3OY4M3keSk=";
           };
           buildPhase = ''
             runHook preBuild

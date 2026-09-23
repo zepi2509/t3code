@@ -1,8 +1,0 @@
-To https://github.com/zepi2509/t3code.git
-   4de54e781b..a8dde56dc2  main -> main
-From https://github.com/zepi2509/t3code
- * branch                  main       -> FETCH_HEAD
-## main...origin/main
-?? .pi/
-a8dde56dc2 fix(nix): refresh dependency hashes after upstream merge
-8ae611b3a5 chore: merge upstream main and adapt Pi integration
