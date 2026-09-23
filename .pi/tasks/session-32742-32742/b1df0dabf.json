@@ -1,0 +1,18 @@
+{
+  "id": "b1df0dabf",
+  "name": "Check sync lockfile formatting",
+  "command": "set -e\n./node_modules/.bin/vp fmt --check packages/contracts/src/provider.test.ts packages/contracts/src/providerRuntime.ts .github/workflows/release.yml pnpm-lock.yaml\n./node_modules/.bin/vp install --lockfile-only --frozen-lockfile --ignore-scripts\ngit diff --check upstream/main -- . ':(exclude)pnpm-lock.yaml'",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-32742-32742/b1df0dabf.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1790013099502,
+  "endTime": 1790013116395,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 41564,
+  "bytesWritten": 500,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
