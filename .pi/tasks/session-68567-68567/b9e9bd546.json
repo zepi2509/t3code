@@ -1,0 +1,19 @@
+{
+  "id": "b9e9bd546",
+  "name": "Nix Abhängigkeitshashes berechnen",
+  "command": "for package in unwrapped server; do NP_LOCATION=/tmp/t3-nix-home /tmp/nix-portable nix build --impure --no-link --print-build-logs --expr \"let flake = builtins.getFlake \\\"path:/workspace/t3code-pi\\\"; in flake.packages.x86_64-linux.$package.pnpmDeps.overrideAttrs (_: { outputHash = \\\"\\\"; })\" > \"/tmp/t3-nix-$package.log\" 2>&1; echo \"$package exit=$?\"; tail -16 \"/tmp/t3-nix-$package.log\"; done",
+  "status": "killed",
+  "outputPath": ".pi/tasks/session-68567-68567/b9e9bd546.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788861027985,
+  "endTime": 1788861036359,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 72840,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 3600
+}

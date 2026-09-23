@@ -1,0 +1,19 @@
+{
+  "id": "bd4e365af",
+  "name": "Refresh current Nix hashes",
+  "command": "/nix/store/j823gnvpxh1fjibycmldrspkk3pgivwp-nix-2.20.6/bin/nix --extra-experimental-features 'nix-command flakes' --option build-users-group '' --option sandbox false build .#unwrapped.pnpmDeps .#server.pnpmDeps --no-link --keep-going -L",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-32742-32742/bd4e365af.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1790012780413,
+  "endTime": 1790012780451,
+  "exitCode": 127,
+  "signal": null,
+  "pid": 36473,
+  "bytesWritten": 109,
+  "isAgent": false,
+  "error": "Exited with code 127",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

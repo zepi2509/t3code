@@ -1,0 +1,9 @@
+warning: Git tree '/workspace/t3code-pi' is dirty
+[1mResolved URL:[0m  git+file:///workspace/t3code-pi
+[1mLocked URL:[0m    git+file:///workspace/t3code-pi
+[1mDescription:[0m   T3 Code server and desktop packages
+[1mPath:[0m          /nix/store/98ra71dqrq1vw9bl8z7kxlr549aff4dh-source
+[1mRevision:[0m      4de54e781b279898bc3b84dc76481eb10c66923f-dirty
+[1mLast modified:[0m 2026-09-18 06:35:42
+[1mInputs:[0m
+└───[1mnixpkgs[0m: github:NixOS/nixpkgs/61b7c44c4073f0b827768aff0049561b5110ea5a (2026-07-18 06:39:13)

@@ -1,0 +1,74 @@
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/apps/server
+
+(node:36117) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36899) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  11 passed (11)
+      Tests  341 passed (341)
+   Start at  19:46:03
+   Duration  121.31s (transform 8.73s, setup 4.66s, import 58.72s, tests 49.28s, environment 7ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/apps/web
+
+
+ Test Files  9 passed (9)
+      Tests  366 passed (366)
+   Start at  19:48:55
+   Duration  33.24s (transform 16.48s, setup 3.81s, import 53.53s, tests 2.98s, environment 13ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/apps/mobile
+
+
+ Test Files  2 passed (2)
+      Tests  73 passed (73)
+   Start at  19:49:32
+   Duration  14.23s (transform 12.68s, setup 838ms, import 25.06s, tests 580ms, environment 0ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/packages/client-runtime
+
+
+ Test Files  2 passed (2)
+      Tests  29 passed (29)
+   Start at  19:49:54
+   Duration  5.71s (transform 4.18s, setup 898ms, import 8.50s, tests 79ms, environment 0ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/packages/contracts
+
+
+ Test Files  5 passed (5)
+      Tests  112 passed (112)
+   Start at  19:50:03
+   Duration  5.15s (transform 3.78s, setup 1.94s, import 7.54s, tests 498ms, environment 1ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/apps/desktop
+
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  19:50:32
+   Duration  31.37s (transform 9.59s, setup 373ms, import 29.75s, tests 742ms, environment 0ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi
+
+
+ Test Files  1 passed (1)
+      Tests  71 passed (71)
+   Start at  19:51:07
+   Duration  9.32s (transform 2.45s, setup 552ms, import 4.72s, tests 3.19s, environment 0ms)
+
