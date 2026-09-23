@@ -19,6 +19,38 @@ const { fileURLToPath } = NodeURL;
 const rebaseScript = fileURLToPath(new URL("./rebase-upstream.sh", import.meta.url));
 const hashesScript = fileURLToPath(new URL("./update-nix-hashes.mjs", import.meta.url));
 
+for (const version of [
+  "0.0.43-preview.20260923.2138",
+  "0.0.43-pr.1.2",
+  "0.0.43-nightly.20260923.1",
+  "0.0.43",
+]) {
+  test(`macOS manifest handling for ${version}`, (t) => {
+    const cwd = workspace(t);
+    NodeFS.mkdirSync(join(cwd, "release"));
+    const preview = version.includes("-preview.") || version.includes("-pr.");
+    if (!preview) writeFileSync(join(cwd, "release/latest-mac.yml"), "manifest");
+    const workflow = readFileSync(
+      new URL("../workflows/desktop-build.yml", import.meta.url),
+      "utf8",
+    );
+    const shell = workflow.match(
+      /name: Disambiguate Intel macOS update manifest[\s\S]*?run: \|\n((?: {10}.*\n)+)/,
+    )?.[1];
+    assert.ok(shell);
+    const result = spawnSync(
+      "bash",
+      ["-e", "-c", shell.replace("${{ needs.prepare.outputs.version }}", version)],
+      { cwd, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(
+      NodeFS.readdirSync(join(cwd, "release")),
+      preview ? [] : ["latest-mac-x64.yml"],
+    );
+  });
+}
+
 function workspace(t) {
   const cwd = mkdtempSync(join(tmpdir(), "t3-sync-"));
   t.after(() => rmSync(cwd, { recursive: true, force: true }));
