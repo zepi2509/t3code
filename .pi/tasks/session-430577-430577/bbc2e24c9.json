@@ -1,0 +1,18 @@
+{
+  "id": "bbc2e24c9",
+  "name": "Test Pi with project runner",
+  "command": "cd apps/server && ../../node_modules/.bin/vp test run src/provider/Drivers/PiDriver.test.ts src/provider/Layers/PiAdapter.test.ts src/provider/Layers/PiAdapter.integration.test.ts src/provider/Layers/PiProvider.test.ts src/provider/Layers/PiRpcClient.test.ts src/provider/Layers/PiTurnUsage.test.ts src/provider/assets/pi/t3-approvals.test.ts src/provider/Layers/ProviderRegistry.test.ts src/textGeneration/PiTextGeneration.test.ts src/orchestration/Layers/ProviderCommandReactor.test.ts src/orchestration/Layers/ProviderRuntimeIngestion.test.ts",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-430577-430577/bbc2e24c9.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715392226,
+  "endTime": 1789715551282,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 450452,
+  "bytesWritten": 733,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
