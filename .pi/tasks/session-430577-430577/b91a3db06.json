@@ -1,0 +1,19 @@
+{
+  "id": "b91a3db06",
+  "name": "Test fork client contracts",
+  "command": "set -e\ncd /workspace/t3code-pi/apps/web\nmise exec vp@0.2.2 -- vp test run --project unit src/components/chat/ComposerPrimaryActions.test.tsx src/components/chat/ComposerPendingUserInputPanel.test.tsx src/components/settings/ProviderSettingsForm.test.ts src/composerDraftStore.test.ts src/lib/contextWindow.test.ts src/pendingUserInput.test.ts src/session-logic.test.ts src/queuedMessageStore.test.ts\ncd /workspace/t3code-pi/apps/mobile\nmise exec vp@0.2.2 -- vp test run src/state/thread-outbox.test.ts src/state/use-thread-outbox-drain.test.ts\ncd /workspace/t3code-pi/packages/client-runtime\nmise exec vp@0.2.2 -- vp test run src/state/compaction.test.ts src/pendingRequests.test.ts\ncd /workspace/t3code-pi/packages/contracts\nmise exec vp@0.2.2 -- vp test run src/provider.test.ts src/providerRuntime.test.ts src/model.test.ts src/orchestration.test.ts src/keybindings.test.ts",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-430577-430577/b91a3db06.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715234016,
+  "endTime": 1789715352228,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 449498,
+  "bytesWritten": 6363,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

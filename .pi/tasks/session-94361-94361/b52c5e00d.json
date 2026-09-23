@@ -1,0 +1,20 @@
+{
+  "id": "b52c5e00d",
+  "name": "Compaction focused checks",
+  "command": "export PATH=\"$PWD/node_modules/.bin:$PATH\"; vp test run apps/server/src/orchestration/Layers/ProviderCommandReactor.test.ts packages/client-runtime/src/state/compaction.test.ts",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-94361-94361/b52c5e00d.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788865531468,
+  "endTime": 1788865613116,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 101465,
+  "bytesWritten": 5641,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}
