@@ -1,0 +1,164 @@
+
+ RUN  v4.1.9 /workspace/t3code-pi/apps/server
+
+(node:449476) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/orchestration/Layers/ProviderRuntimeIngestion.test.ts (0 test)
+(node:449664) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/orchestration/Layers/ProviderCommandReactor.test.ts (0 test)
+ ❯ src/provider/Layers/ProviderRegistry.test.ts (0 test)
+ ❯ src/provider/Layers/PiAdapter.integration.test.ts (0 test)
+ ❯ src/provider/Layers/PiRpcClient.test.ts (0 test)
+ ❯ src/provider/Drivers/PiDriver.test.ts (0 test)
+ ❯ src/textGeneration/PiTextGeneration.test.ts (0 test)
+ ❯ src/provider/Layers/PiProvider.test.ts (0 test)
+ ❯ src/provider/Layers/PiAdapter.test.ts (0 test)
+ ❯ src/provider/Layers/PiTurnUsage.test.ts (0 test)
+ ❯ src/provider/assets/pi/t3-approvals.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 11 ⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/textGeneration/PiTextGeneration.test.ts [ src/textGeneration/PiTextGeneration.test.ts ]
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+ ❯ src/textGeneration/PiTextGeneration.test.ts:55:4
+     53|   });
+     54|
+     55| it.effect("generateThreadTitle parses the JSON returned via get_last_a…
+       |    ^
+     56|   withFakePi(
+     57|     {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  src/orchestration/Layers/ProviderCommandReactor.test.ts [ src/orchestration/Layers/ProviderCommandReactor.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/orchestration/Layers/ProviderCommandReactor.test.ts:118:1
+    116| }
+    117|
+    118| describe("ProviderCommandReactor", () => {
+       | ^
+    119|   let runtime: ManagedRuntime.ManagedRuntime<
+    120|     | OrchestrationEngineService
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  src/orchestration/Layers/ProviderRuntimeIngestion.test.ts [ src/orchestration/Layers/ProviderRuntimeIngestion.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/orchestration/Layers/ProviderRuntimeIngestion.test.ts:241:1
+    239| }
+    240|
+    241| describe("ProviderRuntimeIngestion", () => {
+       | ^
+    242|   let runtime: ManagedRuntime.ManagedRuntime<
+    243|     OrchestrationEngineService | ProviderRuntimeIngestionService | Pro…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  src/provider/Drivers/PiDriver.test.ts [ src/provider/Drivers/PiDriver.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Drivers/PiDriver.test.ts:110:20
+    108| const windowsHost = HostProcessPlatform.defaultValue() === "win32";
+    109|
+    110| it.layer(testLayer)("PiDriver", (it) => {
+       |                    ^
+    111|   it.effect.skipIf(windowsHost)(
+    112|     "replaces project commands and skills without re-probing models or…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  src/provider/Layers/PiAdapter.integration.test.ts [ src/provider/Layers/PiAdapter.integration.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Layers/PiAdapter.integration.test.ts:181:23
+    179|   decodePiSettings({ enabled: true, ...overrides });
+    180|
+    181| it.layer(HarnessLayer)("PiAdapter integration", (it) => {
+       |                       ^
+    182|   it.effect("reports usage once across internal turns and resets it fo…
+    183|     Effect.gen(function* () {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  src/provider/Layers/PiAdapter.test.ts [ src/provider/Layers/PiAdapter.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Layers/PiAdapter.test.ts:16:1
+     14| } from "./PiAdapter.ts";
+     15|
+     16| describe("classifyPiToolItemType", () => {
+       | ^
+     17|   it("maps shell / exec tools to command execution", () => {
+     18|     expect(classifyPiToolItemType("bash")).toBe("command_execution");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  src/provider/Layers/PiProvider.test.ts [ src/provider/Layers/PiProvider.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Layers/PiProvider.test.ts:26:1
+     24| const HEALTHY_PI_SCRIPT = healthyPiScript();
+     25|
+     26| describe("buildInitialPiProviderSnapshot", () => {
+       | ^
+     27|   it.effect("returns a disabled snapshot when settings.enabled is fals…
+     28|     Effect.gen(function* () {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  src/provider/Layers/PiRpcClient.test.ts [ src/provider/Layers/PiRpcClient.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Layers/PiRpcClient.test.ts:45:1
+     43|   }) as unknown as Parameters<typeof resolvePiThinkingLevel>[0];
+     44|
+     45| describe("tryParsePiJsonObject", () => {
+       | ^
+     46|   it("parses a JSON object line", () => {
+     47|     expect(tryParsePiJsonObject('{"type":"response","id":"1"}')).toEqu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  src/provider/Layers/PiTurnUsage.test.ts [ src/provider/Layers/PiTurnUsage.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Layers/PiTurnUsage.test.ts:8:1
+      6|   normalizePiMessageUsage({ usage: value, stopReason });
+      7|
+      8| describe("Pi turn usage", () => {
+       | ^
+      9|   it("sums main-agent responses including both cache categories withou…
+     10|     expect(completePiTurnUsage([message(), message()], true)).toEqual({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  src/provider/Layers/ProviderRegistry.test.ts [ src/provider/Layers/ProviderRegistry.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/Layers/ProviderRegistry.test.ts:364:99
+    362|   );
+    363|
+    364| it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layer…
+       |                                                                                                   ^
+    365|   "ProviderRegistry",
+    366|   (it) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  src/provider/assets/pi/t3-approvals.test.ts [ src/provider/assets/pi/t3-approvals.test.ts ]
+TypeError: Cannot read properties of undefined (reading 'config')
+ ❯ src/provider/assets/pi/t3-approvals.test.ts:5:1
+      3| import { autoApprovedTools, describeToolCall, gateDecision } from "./t…
+      4|
+      5| describe("t3-approvals: autoApprovedTools (default-deny allowlist)", (…
+       | ^
+      6|   it("auto-approves only read-only tools by default", () => {
+      7|     const allowed = autoApprovedTools(undefined);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  11 failed (11)
+      Tests  no tests
+   Start at  09:07:08
+   Duration  109.15s (transform 49.80s, setup 3.69s, import 0ms, tests 0ms, environment 2ms)
+
