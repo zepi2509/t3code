@@ -1,0 +1,20 @@
+{
+  "id": "b0cd5d88f",
+  "name": "CI Build-Paketfix prüfen",
+  "command": "gh run watch 34212469651 --repo zepi2509/t3code --exit-status > /tmp/t3-ci2-watch.log 2>&1; result=$?; gh run view 34212469651 --repo zepi2509/t3code; if [ \"$result\" -ne 0 ]; then gh run view 34212469651 --repo zepi2509/t3code --log-failed > /tmp/t3-ci2-failed.log; fi; exit \"$result\"",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-68567-68567/b0cd5d88f.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788861082454,
+  "endTime": 1788861388082,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 73253,
+  "bytesWritten": 2001,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 7200
+}

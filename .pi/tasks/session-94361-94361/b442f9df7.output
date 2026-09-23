@@ -1,0 +1,6 @@
+packages/client-runtime EXIT=0
+
+apps/web EXIT=0
+
+apps/mobile EXIT=0
+
