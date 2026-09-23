@@ -1,0 +1,52 @@
+{
+  "artifacts": {
+    "budget-plan.json": {
+      "byte_length": 10113,
+      "path": "budget-plan.json",
+      "sha256": "4aa308a79b8e0f26f158a14ef2f0ffeab266a504884d478a4d5e28e8ce136cb0"
+    },
+    "child-prompt.txt": {
+      "byte_length": 66208,
+      "path": "child-prompt.txt",
+      "sha256": "ffa4c42553bfaa1ca327b5268d9c30532db9c21f4aa35069facbd32e02f512a0"
+    },
+    "context-omission-ledger.json": {
+      "byte_length": 96399,
+      "path": "context-omission-ledger.json",
+      "sha256": "45231e31b74b2378ee663686a53b895c3775ff2de8a3b83f6575ab6dc45f3a10"
+    },
+    "seed.json": {
+      "byte_length": 64769,
+      "path": "seed.json",
+      "sha256": "e5dbb3cf1d5142015f267cf950f00ff1a355f60ea8328fb09eb020d6b448ba5e"
+    }
+  },
+  "child_session_dir": "",
+  "child_session_id": "delegate-d4dc5f818e4d6c36fba8bcc840bf1849",
+  "created_at": "2026-09-08T11:22:44.133Z",
+  "cwd": "/workspace/t3code-pi",
+  "extension_mode": "isolated",
+  "launch_nonce": "553642b4e205b81528cb7bb8d7dda7ad",
+  "limits": {
+    "allowed_input_tokens": 243328,
+    "max_answer_bytes": 4194304,
+    "max_tool_calls": 50,
+    "max_tool_result_bytes": 65536,
+    "max_total_tool_output_bytes": 67108864,
+    "max_turns": 18,
+    "timeout_seconds": 600
+  },
+  "route": {
+    "context_window_tokens": 272000,
+    "model": "gpt-6-astra",
+    "origin": "parent_current",
+    "provider": "openai-codex",
+    "qualified_id": "openai-codex/gpt-6-astra",
+    "thinking_level": "high"
+  },
+  "schema_version": "pi-background-tasks.delegate-manifest.v2",
+  "seed_sha256": "e5dbb3cf1d5142015f267cf950f00ff1a355f60ea8328fb09eb020d6b448ba5e",
+  "state": "launched",
+  "task_id": "dc3dbd315e6b19e4c1b9d3a31dd27e7b5",
+  "updated_at": "2026-09-08T11:24:05.136Z"
+}
