@@ -1,0 +1,19 @@
+{
+  "id": "b83631cec",
+  "name": "Retry isolated Nix hashes",
+  "command": "PROOT_NO_SECCOMP=1 NP_LOCATION=/tmp/t3code-nix-sync NP_RUNTIME=proot /tmp/t3code-nix-sync/nix-portable nix --extra-experimental-features 'nix-command flakes' build .#unwrapped.pnpmDeps .#server.pnpmDeps --no-link --keep-going",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-430577-430577/b83631cec.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715563013,
+  "endTime": 1789715815005,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 452272,
+  "bytesWritten": 1050,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
