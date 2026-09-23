@@ -1,0 +1,18 @@
+{
+  "id": "b94ae66d2",
+  "name": "Replay fork commits linearly",
+  "command": "PATH=\"$PWD/node_modules/.bin:$PATH\" python3 - <<'PY'\nimport subprocess\nsnapshot='backup/pre-linear-sync-a8dde56dc2'\ndef git(*args,check=True):\n    return subprocess.run(['git',*args],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,check=check)\nfor step in range(80):\n    if git('rev-parse','--verify','REBASE_HEAD',check=False).returncode:\n        print('Rebase completed',flush=True)\n        break\n    current=git('show','-s','--format=%h %s','REBASE_HEAD').stdout.strip()\n    paths=git('diff','--name-only','--diff-filter=U','-z').stdout.split('\\0')\n    paths=[p for p in paths if p]\n    for path in paths:\n        if git('cat-file','-e',f'{snapshot}:{path}',check=False).returncode == 0:\n            git('restore',f'--source={snapshot}','--staged','--worktree','--',path)\n        else:\n            git('rm','-f','--',path)\n    print(f'{current}: reused verified resolutions for {len(paths)} files',flush=True)\n    action='--skip' if git('diff','--cached','--quiet',check=False).returncode == 0 else '--continue'\n    result=git('-c','core.editor=true','rebase',action,check=False)\n    print(result.stdout[-1800:],flush=True)\n    if result.returncode and not git('diff','--name-only','--diff-filter=U').stdout.strip():\n        raise SystemExit('Stopped on non-conflict rebase error; inspect before continuing')\nelse:\n    raise SystemExit('Rebase iteration limit exceeded')\nPY",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-15796-15796/b94ae66d2.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789732678458,
+  "endTime": 1789732711781,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 16630,
+  "bytesWritten": 11127,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
