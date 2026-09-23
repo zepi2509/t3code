@@ -1,0 +1,19 @@
+{
+  "id": "be857b81a",
+  "name": "Build integrated desktop server",
+  "command": "mise exec vp@0.2.2 -- vp run build:desktop",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-430577-430577/be857b81a.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715182434,
+  "endTime": 1789715644427,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 448391,
+  "bytesWritten": 263340,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
