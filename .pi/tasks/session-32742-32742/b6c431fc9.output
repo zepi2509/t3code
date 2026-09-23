@@ -1,0 +1,286 @@
+[WARN] Unsupported engine: wanted: {"node":"^24.13.1"} (current: {"node":"v22.23.1","pnpm":"11.10.0"})
+Scope: all 16 workspace projects
+
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 11.10.0 → 12.5.1.   │
+   │   Changelog: https://pnpm.io/v/12.5.1   │
+   │    To update, run: pnpm add -g pnpm     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
+
+? Verifying lockfile against supply-chain policies (2055 entries)...
+[WARN] Request took 11911ms: https://registry.npmjs.org/@babel%2Fhelper-globals
+[WARN] Request took 12675ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-linux-arm64-musl
+[WARN] Request took 12671ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-linux-x64-musl
+Progress: resolved 1, reused 0, downloaded 0, added 0
+[WARN] Request took 13431ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-wasm32-wasi
+[WARN] Request took 13467ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-linux-arm64-gnu
+[WARN] Request took 13476ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-darwin-x64
+[WARN] Request took 13476ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-linux-x64-gnu
+Progress: resolved 20, reused 0, downloaded 0, added 0
+[WARN] Request took 14943ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-win32-arm64-msvc
+[WARN] Request took 14983ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-win32-x64-msvc
+Progress: resolved 21, reused 0, downloaded 0, added 0
+Progress: resolved 31, reused 0, downloaded 0, added 0
+[WARN] Request took 15692ms: https://registry.npmjs.org/@babel%2Fhelper-compilation-targets
+Progress: resolved 48, reused 0, downloaded 0, added 0
+[WARN] Request took 18209ms: https://registry.npmjs.org/@astrojs%2Fcompiler-binding-darwin-arm64
+Progress: resolved 51, reused 0, downloaded 0, added 0
+Progress: resolved 56, reused 0, downloaded 0, added 0
+Progress: resolved 58, reused 0, downloaded 0, added 0
+Progress: resolved 66, reused 0, downloaded 0, added 0
+Progress: resolved 69, reused 0, downloaded 0, added 0
+Progress: resolved 75, reused 0, downloaded 0, added 0
+[WARN] Request took 10539ms: https://registry.npmjs.org/@babel%2Fhelper-validator-identifier
+Progress: resolved 86, reused 2, downloaded 0, added 0
+[WARN] Request took 24734ms: https://registry.npmjs.org/@babel%2Fhelper-create-class-features-plugin
+Progress: resolved 94, reused 3, downloaded 0, added 0
+Progress: resolved 103, reused 4, downloaded 0, added 0
+Progress: resolved 115, reused 4, downloaded 0, added 0
+[WARN] Request took 28288ms: https://registry.npmjs.org/@anthropic-ai%2Fsdk
+Progress: resolved 129, reused 4, downloaded 0, added 0
+[WARN] Request took 15162ms: https://registry.npmjs.org/@earendil-works%2Fpi-coding-agent
+[WARN] Request took 29508ms: https://registry.npmjs.org/@babel%2Fhelper-module-transforms
+Progress: resolved 138, reused 4, downloaded 0, added 0
+Progress: resolved 146, reused 5, downloaded 0, added 0
+[WARN] Request took 17767ms: https://registry.npmjs.org/@babel%2Fparser
+Progress: resolved 153, reused 6, downloaded 0, added 0
+Progress: resolved 154, reused 6, downloaded 0, added 0
+Progress: resolved 154, reused 7, downloaded 0, added 0
+[WARN] Request took 14991ms: https://registry.npmjs.org/expo-symbols
+[WARN] Request took 34039ms: https://registry.npmjs.org/@babel%2Fcode-frame
+[WARN] Request took 34172ms: https://registry.npmjs.org/@babel%2Fgenerator
+[WARN] Request took 15618ms: https://registry.npmjs.org/expo-glass-effect
+[WARN] Request took 34447ms: https://registry.npmjs.org/@ai-sdk%2Fprovider-utils
+[WARN] Request took 11308ms: https://registry.npmjs.org/@clerk%2Felectron-passkeys-win32-x64-msvc
+Progress: resolved 157, reused 8, downloaded 0, added 0
+[WARN] Request took 11353ms: https://registry.npmjs.org/@clerk%2Felectron-passkeys-win32-arm64-msvc
+[WARN] Request took 16165ms: https://registry.npmjs.org/expo-blur
+[WARN] Request took 11362ms: https://registry.npmjs.org/@cloudflare%2Fworkerd-darwin-64
+[WARN] Request took 15356ms: https://registry.npmjs.org/expo-video
+[WARN] Request took 11795ms: https://registry.npmjs.org/@clerk%2Felectron-passkeys-darwin-x64
+[WARN] Request took 16715ms: https://registry.npmjs.org/expo-build-properties
+[WARN] Request took 10751ms: https://registry.npmjs.org/@effect%2Fsql-sqlite-bun
+[WARN] Request took 11895ms: https://registry.npmjs.org/@cloudflare%2Fworkerd-windows-64
+[WARN] Request took 11808ms: https://registry.npmjs.org/@cloudflare%2Fworkerd-linux-arm64
+Progress: resolved 160, reused 11, downloaded 0, added 0
+[WARN] Request took 16938ms: https://registry.npmjs.org/expo-network
+[WARN] Request took 12683ms: https://registry.npmjs.org/@cloudflare%2Fworkerd-darwin-arm64
+[WARN] Request took 11208ms: https://registry.npmjs.org/@effect%2Fsql-sqlite-do
+Progress: resolved 161, reused 12, downloaded 0, added 0
+[WARN] Request took 14277ms: https://registry.npmjs.org/@clerk%2Felectron-passkeys-darwin-arm64
+[WARN] Request took 17768ms: https://registry.npmjs.org/expo-web-browser
+Progress: resolved 162, reused 13, downloaded 0, added 0
+[WARN] Request took 21587ms: https://registry.npmjs.org/@expo%2Fmetro-runtime
+[WARN] Request took 25016ms: https://registry.npmjs.org/@anthropic-ai%2Fclaude-agent-sdk
+Progress: resolved 164, reused 13, downloaded 0, added 0
+[WARN] Request took 23570ms: https://registry.npmjs.org/@expo%2Fui
+Progress: resolved 165, reused 13, downloaded 0, added 0
+[WARN] Request took 21679ms: https://registry.npmjs.org/expo-auth-session
+[WARN] Request took 21695ms: https://registry.npmjs.org/expo-device
+Progress: resolved 167, reused 13, downloaded 0, added 0
+[WARN] Request took 17325ms: https://registry.npmjs.org/@cloudflare%2Funenv-preset
+[WARN] Request took 22539ms: https://registry.npmjs.org/expo-clipboard
+[WARN] Request took 22768ms: https://registry.npmjs.org/expo-crypto
+Progress: resolved 169, reused 14, downloaded 0, added 0
+[WARN] Request took 20395ms: https://registry.npmjs.org/@cloudflare%2Fworkerd-linux-64
+[WARN] Request took 20045ms: https://registry.npmjs.org/@cloudflare%2Fworkers-types
+[WARN] Request took 24922ms: https://registry.npmjs.org/expo-sqlite
+Progress: resolved 170, reused 14, downloaded 0, added 0
+Progress: resolved 170, reused 15, downloaded 0, added 0
+[WARN] Request took 45080ms: https://registry.npmjs.org/@babel%2Fcore
+[WARN] Request took 13249ms: https://registry.npmjs.org/@expo%2Fimage-utils
+[WARN] Request took 27793ms: https://registry.npmjs.org/expo-dev-client
+Progress: resolved 171, reused 15, downloaded 0, added 0
+[WARN] Request took 28435ms: https://registry.npmjs.org/expo-keep-awake
+Progress: resolved 172, reused 15, downloaded 0, added 0
+[WARN] Request took 49566ms: https://registry.npmjs.org/@aws-sdk%2Ftoken-providers
+[WARN] Request took 32341ms: https://registry.npmjs.org/expo-asset
+Progress: resolved 173, reused 15, downloaded 0, added 0
+[WARN] Request took 32003ms: https://registry.npmjs.org/expo-linking
+Progress: resolved 174, reused 16, downloaded 0, added 0
+[WARN] Request took 33568ms: https://registry.npmjs.org/expo-image
+Progress: resolved 175, reused 16, downloaded 0, added 0
+[WARN] Request took 34174ms: https://registry.npmjs.org/expo-image-manipulator
+[WARN] Request took 34284ms: https://registry.npmjs.org/expo-font
+Progress: resolved 177, reused 16, downloaded 0, added 0
+[WARN] Request took 38023ms: https://registry.npmjs.org/expo-image-picker
+Progress: resolved 178, reused 16, downloaded 0, added 0
+[WARN] Request took 39209ms: https://registry.npmjs.org/expo-camera
+Progress: resolved 179, reused 16, downloaded 0, added 0
+[WARN] Request took 39158ms: https://registry.npmjs.org/expo-splash-screen
+[WARN] Request took 10991ms: https://registry.npmjs.org/@react-native%2Fdebugger-shell
+[WARN] Request took 44987ms: https://registry.npmjs.org/babel-preset-expo
+Progress: resolved 181, reused 16, downloaded 0, added 0
+[WARN] Request took 40104ms: https://registry.npmjs.org/expo-updates
+Progress: resolved 182, reused 16, downloaded 0, added 0
+[WARN] GET https://registry.npmjs.org/@aws-sdk%2Fclient-cognito-identity error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] GET https://registry.npmjs.org/@aws-sdk%2Fcredential-providers error (23). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 182, reused 17, downloaded 0, added 0
+[WARN] Request took 15530ms: https://registry.npmjs.org/@react-navigation%2Fcore
+[WARN] Request took 36765ms: https://registry.npmjs.org/@cloudflare%2Fworkers-types
+Progress: resolved 183, reused 17, downloaded 0, added 0
+[WARN] Request took 13077ms: https://registry.npmjs.org/@tanstack%2Fquery-core
+Progress: resolved 183, reused 18, downloaded 0, added 0
+[WARN] Request took 19455ms: https://registry.npmjs.org/@react-native%2Fdebugger-frontend
+[WARN] Request took 19671ms: https://registry.npmjs.org/@react-native%2Fassets-registry
+[WARN] Request took 18384ms: https://registry.npmjs.org/@react-native%2Fjs-polyfills
+[WARN] Request took 18872ms: https://registry.npmjs.org/@react-native%2Fgradle-plugin
+[WARN] Request took 20374ms: https://registry.npmjs.org/@react-native%2Fnormalize-colors
+[WARN] Request took 22523ms: https://registry.npmjs.org/@react-native%2Fbabel-plugin-codegen
+Progress: resolved 183, reused 19, downloaded 0, added 0
+[WARN] Request took 22519ms: https://registry.npmjs.org/@react-native%2Fmetro-config
+[WARN] Request took 22651ms: https://registry.npmjs.org/@react-native%2Fmetro-babel-transformer
+[WARN] Request took 22548ms: https://registry.npmjs.org/@react-native%2Fvirtualized-lists
+[WARN] Request took 19583ms: https://registry.npmjs.org/@tabler%2Ficons
+[WARN] Request took 24921ms: https://registry.npmjs.org/@react-native%2Fdev-middleware
+[WARN] Request took 25989ms: https://registry.npmjs.org/@react-native%2Fcommunity-cli-plugin
+[WARN] GET https://registry.npmjs.org/electron error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] Request took 29441ms: https://registry.npmjs.org/@react-native%2Fcodegen
+[WARN] GET https://registry.npmjs.org/expo error (23). Will retry in 10 seconds. 2 retries left.
+Progress: resolved 183, reused 20, downloaded 0, added 0
+[WARN] Request took 12212ms: https://registry.npmjs.org/bun-types
+Progress: resolved 183, reused 21, downloaded 0, added 0
+[WARN] Request took 12563ms: https://registry.npmjs.org/@aws-sdk%2Fcredential-providers
+Progress: resolved 183, reused 23, downloaded 0, added 0
+[WARN] GET https://registry.npmjs.org/@opencode-ai%2Fsdk error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] Request took 18747ms: https://registry.npmjs.org/@aws-sdk%2Fclient-cognito-identity
+[WARN] GET https://registry.npmjs.org/typescript error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] Request took 43045ms: https://registry.npmjs.org/@react-native%2Fbabel-preset
+[WARN] Request took 24186ms: https://registry.npmjs.org/electron-to-chromium
+[WARN] Request took 14718ms: https://registry.npmjs.org/mongodb
+[WARN] Request took 11937ms: https://registry.npmjs.org/react-is
+[WARN] Request took 10578ms: https://registry.npmjs.org/scheduler
+[WARN] Request took 12129ms: https://registry.npmjs.org/react-refresh
+[WARN] Request took 10903ms: https://registry.npmjs.org/expo
+Progress: resolved 184, reused 23, downloaded 0, added 0
+[WARN] Request took 12094ms: https://registry.npmjs.org/electron
+[WARN] Request took 59879ms: https://registry.npmjs.org/@opencode-ai%2Fsdk
+Progress: resolved 186, reused 23, downloaded 0, added 0
+Progress: resolved 187, reused 23, downloaded 0, added 0
+Progress: resolved 187, reused 24, downloaded 0, added 0
+Progress: resolved 228, reused 24, downloaded 0, added 0
+Progress: resolved 240, reused 24, downloaded 0, added 0
+Progress: resolved 282, reused 24, downloaded 0, added 0
+Progress: resolved 327, reused 24, downloaded 0, added 0
+Progress: resolved 331, reused 24, downloaded 0, added 0
+Progress: resolved 339, reused 25, downloaded 0, added 0
+Progress: resolved 340, reused 25, downloaded 0, added 0
+Progress: resolved 376, reused 25, downloaded 0, added 0
+Progress: resolved 390, reused 26, downloaded 0, added 0
+Progress: resolved 443, reused 26, downloaded 0, added 0
+Progress: resolved 471, reused 26, downloaded 0, added 0
+Progress: resolved 486, reused 27, downloaded 0, added 0
+Progress: resolved 526, reused 27, downloaded 0, added 0
+Progress: resolved 544, reused 27, downloaded 0, added 0
+✓ Lockfile passes supply-chain policies (2055 entries in 2m 19.3s)
+[WARN] Request took 13950ms: https://registry.npmjs.org/magic-string
+Progress: resolved 559, reused 27, downloaded 0, added 0
+[WARN] Request took 14911ms: https://registry.npmjs.org/nanoid
+Progress: resolved 576, reused 27, downloaded 0, added 0
+Progress: resolved 601, reused 27, downloaded 0, added 0
+Progress: resolved 618, reused 28, downloaded 0, added 0
+Progress: resolved 631, reused 30, downloaded 0, added 0
+Progress: resolved 642, reused 30, downloaded 0, added 0
+Progress: resolved 686, reused 32, downloaded 0, added 0
+Progress: resolved 708, reused 34, downloaded 0, added 0
+Progress: resolved 718, reused 36, downloaded 0, added 0
+Progress: resolved 738, reused 38, downloaded 0, added 0
+Progress: resolved 738, reused 39, downloaded 0, added 0
+[WARN] Request took 24276ms: https://registry.npmjs.org/postcss
+[WARN] Request took 22728ms: https://registry.npmjs.org/zod
+Progress: resolved 744, reused 40, downloaded 0, added 0
+Progress: resolved 745, reused 40, downloaded 0, added 0
+Progress: resolved 799, reused 41, downloaded 0, added 0
+Progress: resolved 849, reused 45, downloaded 0, added 0
+Progress: resolved 915, reused 45, downloaded 0, added 0
+Progress: resolved 931, reused 45, downloaded 0, added 0
+Progress: resolved 964, reused 46, downloaded 0, added 0
+Progress: resolved 992, reused 47, downloaded 0, added 0
+Progress: resolved 1018, reused 48, downloaded 0, added 0
+Progress: resolved 1025, reused 48, downloaded 0, added 0
+Progress: resolved 1042, reused 48, downloaded 0, added 0
+Progress: resolved 1051, reused 49, downloaded 0, added 0
+Progress: resolved 1070, reused 50, downloaded 0, added 0
+Progress: resolved 1100, reused 50, downloaded 0, added 0
+Progress: resolved 1119, reused 50, downloaded 0, added 0
+Progress: resolved 1123, reused 51, downloaded 0, added 0
+Progress: resolved 1146, reused 51, downloaded 0, added 0
+Progress: resolved 1149, reused 52, downloaded 0, added 0
+Progress: resolved 1182, reused 53, downloaded 0, added 0
+Progress: resolved 1227, reused 54, downloaded 0, added 0
+Progress: resolved 1275, reused 54, downloaded 0, added 0
+Progress: resolved 1320, reused 55, downloaded 0, added 0
+Progress: resolved 1382, reused 56, downloaded 0, added 0
+Progress: resolved 1395, reused 57, downloaded 0, added 0
+Progress: resolved 1454, reused 59, downloaded 0, added 0
+Progress: resolved 1522, reused 61, downloaded 0, added 0
+Progress: resolved 1559, reused 62, downloaded 0, added 0
+Progress: resolved 1612, reused 62, downloaded 0, added 0
+Progress: resolved 1649, reused 62, downloaded 0, added 0
+Progress: resolved 1702, reused 62, downloaded 0, added 0
+Progress: resolved 1731, reused 64, downloaded 0, added 0
+Progress: resolved 1790, reused 68, downloaded 0, added 0
+Progress: resolved 1829, reused 68, downloaded 0, added 0
+Progress: resolved 1889, reused 68, downloaded 0, added 0
+Progress: resolved 1966, reused 68, downloaded 0, added 0
+Progress: resolved 1986, reused 68, downloaded 0, added 0
+Progress: resolved 2014, reused 69, downloaded 0, added 0
+Progress: resolved 2034, reused 69, downloaded 0, added 0
+Progress: resolved 2055, reused 70, downloaded 0, added 0
+Progress: resolved 2098, reused 72, downloaded 0, added 0
+Progress: resolved 2127, reused 74, downloaded 0, added 0
+Progress: resolved 2127, reused 75, downloaded 0, added 0
+[WARN] 8 deprecated subdependencies found: boolean@3.2.0, crypto-js@4.2.0, glob@7.2.3, inflight@1.0.6, lodash.isequal@4.5.0, node-domexception@1.0.0, rimraf@2.6.3, uuid@7.0.3
+Progress: resolved 2130, reused 83, downloaded 0, added 0
+Packages: +110 -145
+++++++++++++++++++++++++++++++++++----------------------------------------------
+Progress: resolved 2130, reused 84, downloaded 0, added 0
+Progress: resolved 2130, reused 88, downloaded 0, added 0
+Progress: resolved 2130, reused 96, downloaded 0, added 0
+Progress: resolved 2130, reused 97, downloaded 0, added 0
+Progress: resolved 2130, reused 124, downloaded 0, added 0
+Progress: resolved 2130, reused 138, downloaded 0, added 0
+Progress: resolved 2130, reused 156, downloaded 0, added 0
+Progress: resolved 2130, reused 171, downloaded 0, added 0
+Progress: resolved 2130, reused 184, downloaded 1, added 0
+Progress: resolved 2130, reused 227, downloaded 1, added 0
+Progress: resolved 2130, reused 364, downloaded 1, added 0
+Progress: resolved 2130, reused 575, downloaded 2, added 0
+Progress: resolved 2130, reused 624, downloaded 3, added 0
+Progress: resolved 2130, reused 914, downloaded 3, added 0
+Progress: resolved 2130, reused 1600, downloaded 3, added 0
+Progress: resolved 2130, reused 1729, downloaded 3, added 0
+Progress: resolved 2130, reused 1729, downloaded 4, added 4
+Progress: resolved 2130, reused 1729, downloaded 14, added 4
+Progress: resolved 2130, reused 1729, downloaded 21, added 4
+Progress: resolved 2130, reused 1729, downloaded 23, added 4
+Progress: resolved 2130, reused 1729, downloaded 25, added 4
+Progress: resolved 2130, reused 1729, downloaded 29, added 4
+Progress: resolved 2130, reused 1729, downloaded 31, added 4
+Progress: resolved 2130, reused 1729, downloaded 32, added 4
+Progress: resolved 2130, reused 1729, downloaded 37, added 4
+Progress: resolved 2130, reused 1729, downloaded 42, added 4
+Progress: resolved 2130, reused 1729, downloaded 50, added 4
+Progress: resolved 2130, reused 1729, downloaded 52, added 4
+Progress: resolved 2130, reused 1729, downloaded 56, added 4
+Progress: resolved 2130, reused 1729, downloaded 68, added 7
+Progress: resolved 2130, reused 1729, downloaded 70, added 7
+Progress: resolved 2130, reused 1729, downloaded 71, added 7
+Progress: resolved 2130, reused 1729, downloaded 73, added 25
+Progress: resolved 2130, reused 1729, downloaded 73, added 26
+Progress: resolved 2130, reused 1729, downloaded 73, added 27
+Progress: resolved 2130, reused 1729, downloaded 73, added 108
+Progress: resolved 2130, reused 1729, downloaded 73, added 109
+Progress: resolved 2130, reused 1729, downloaded 74, added 109
+Progress: resolved 2130, reused 1729, downloaded 74, added 110
+Progress: resolved 2130, reused 1729, downloaded 74, added 110, done
+.../esbuild@0.28.2/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.28.2/node_modules/esbuild postinstall: Done
+. prepare$ effect-tsgo patch && vp config --no-agent
+. prepare: typescript skipped because its hash matches the replacement.
+. prepare: Done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+Done in 6m 28.1s using pnpm v11.10.0

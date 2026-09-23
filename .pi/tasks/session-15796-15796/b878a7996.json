@@ -1,0 +1,18 @@
+{
+  "id": "b878a7996",
+  "name": "Rebuild linear Nix packages",
+  "command": "/nix/store/j823gnvpxh1fjibycmldrspkk3pgivwp-nix-2.20.6/bin/nix --extra-experimental-features 'nix-command flakes' --option build-users-group '' --option sandbox false build .#desktop .#server --no-link --keep-going -L",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-15796-15796/b878a7996.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789732858514,
+  "endTime": 1789733542886,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 19964,
+  "bytesWritten": 469760,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}
