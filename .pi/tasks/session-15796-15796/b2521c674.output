@@ -1,7 +1,0 @@
-To https://github.com/zepi2509/t3code.git
- + a8dde56dc2...98f356871b HEAD -> main (forced update)
-From https://github.com/zepi2509/t3code
- * branch                  main       -> FETCH_HEAD
-## main...origin/main
-?? .pi/
-98f356871b fix: preserve verified integration after upstream rebase
