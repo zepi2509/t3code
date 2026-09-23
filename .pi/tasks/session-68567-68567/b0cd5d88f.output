@@ -1,0 +1,67 @@
+
+X main CI · 34212469651
+Triggered via push about 3 minutes ago
+
+JOBS
+✓ Test in 6m18s (ID 102016427118)
+✓ Mobile Native Changes in 4s (ID 102016427324)
+✓ Test Server 2 in 3m2s (ID 102016427391)
+✓ Release Smoke in 1m23s (ID 102016427410)
+X Nix in 3m23s (ID 102016427414)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Nix
+  ✓ Configure Cachix
+  ✓ Check flake
+  X Build server and desktop
+  - Smoke test server
+  ✓ Post Configure Cachix
+  ✓ Post Install Nix
+  ✓ Post Checkout
+  ✓ Complete job
+✓ Check in 3m15s (ID 102016427438)
+✓ Rust in 24s (ID 102016427439)
+✓ Test Server 1 in 3m10s (ID 102016427460)
+✓ Test Server 3 in 3m12s (ID 102016427710)
+✓ Mobile Native Static Analysis in 2m45s (ID 102016458819)
+
+ANNOTATIONS
+! The process '/usr/bin/git' failed with exit code 128
+Test: .github#11
+
+! The process '/usr/bin/git' failed with exit code 128
+Test Server 2: .github#11
+
+! The process '/usr/bin/git' failed with exit code 128
+Release Smoke: .github#11
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: DeterminateSystems/nix-installer-action@v21. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Nix: .github#2
+
+! The process '/usr/bin/git' failed with exit code 128
+Nix: .github#11
+
+X Process completed with exit code 1.
+Nix: .github#833
+
+! The process '/usr/bin/git' failed with exit code 128
+Check: .github#11
+
+! The process '/usr/bin/git' failed with exit code 128
+Rust: .github#11
+
+! The process '/usr/bin/git' failed with exit code 128
+Test Server 1: .github#11
+
+! The process '/usr/bin/git' failed with exit code 128
+Test Server 3: .github#11
+
+! The process '/opt/homebrew/bin/git' failed with exit code 128
+Mobile Native Static Analysis: .github#12
+
+
+ARTIFACTS
+thread-transfer-results
+
+To see what failed, try: gh run view 34212469651 --log-failed
+View this run on GitHub: https://github.com/zepi2509/t3code/actions/runs/34212469651
