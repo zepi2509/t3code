@@ -1,0 +1,46 @@
+Warning: No project session found with id 'delegate-169f904223fc72995c500f14a2a03017'; creating a new session with that id.
+## Findings
+
+1. **Build/runtime blocker: undefined `showSendWhileRunning`.**  
+   `apps/web/src/components/chat/ComposerPrimaryActions.tsx:182`
+   ```tsx
+   if (isRunning && (supportsSteer || !showSendWhileRunning)) {
+   ```
+   This identifier has no declaration or prop. For a running non-Pi/non-Codex provider, evaluating it also throws at runtime.
+
+   **Minimal fix:**
+   ```tsx
+   if (isRunning && supportsSteer) {
+   ```
+   The bottom-of-component branch already renders upstream’s Send/Queue + Stop controls for other running providers.
+
+2. **Web keyboard submission contradicts the Pi delivery buttons.**  
+   - `ComposerPrimaryActions.tsx:182–200`: click defaults to explicit `"steer"`; Ctrl/Cmd-click selects explicit `"follow-up"`.
+   - `ChatComposer.tsx:4005–4013`: keyboard submission computes only `submissionIntent`, then calls `submitComposer(undefined, submissionIntent)` without a delivery mode.
+   - `ChatView.tsx:7676–7708`: when delivery is undefined, upstream’s local queue intercepts according to `settings.followUpBehavior`.
+   - `ChatView.tsx:8656–8694`: that queue releases after a tool boundary or turn completion, not exclusively after completion.
+
+   Consequently, a button labeled **Steer** and Enter can perform different actions. Ctrl/Cmd-Enter also does not reliably mean Pi’s **Send after completion**.
+
+   **Minimal fix:** normalize Pi’s ordinary mid-turn keyboard/form submissions to an explicit delivery mode, using the same `midTurnPrimaryDeliveryMode` helper as the button. Preserve upstream intent handling for other providers and draft-thread background submissions. Keep the `deliveryMode === undefined` local-queue guard: explicit Pi delivery must bypass that queue.
+
+3. **Codex’s retained fork controls bypass the new default local queue.**  
+   `ChatComposer.tsx:7010–7011` enables the custom delivery branch for both Pi and Codex:
+   ```tsx
+   supportsSteer={selectedProvider === "pi" || selectedProvider === "codex"}
+   supportsFollowUp={selectedProvider === "pi"}
+   ```
+   A Codex button click therefore always supplies `"steer"`, bypassing `followUpBehavior` at `ChatView.tsx:7680–7683`, whereas keyboard submission follows the setting. This leaves upstream’s queue behavior inconsistent on its principal provider.
+
+   **Minimal fix, if explicit controls are intended only for Pi:** set `supportsSteer={selectedProvider === "pi"}`. Codex then uses upstream’s ordinary submission/queue path, including its alternate-send behavior. Otherwise, the custom Codex button needs to honor the same submission intent/setting as the keyboard rather than unconditionally forcing steer.
+
+## Integration checks that looked sound
+
+- **Web toolbar compaction preserves the draft:** `ChatComposer.tsx:3838–3862` calls the separate callback; `ChatView.tsx:7167–7237` sends an independent attachment-free `/compact` without clearing draft content. Do not restore the obsolete “replace composer text, then submit” flow.
+- **Mobile explicit Pi delivery survives the outbox:** `ThreadComposer.tsx:340–359,517` selects/passes it; `state/use-thread-composer-state.ts` snapshots it only for Pi; `thread-outbox-model.ts` serializes it and resolves it only for Pi; `use-thread-outbox-drain.ts:824–825` forwards it. The outbox’s delivery resolver allows connected existing-thread messages through while busy, so it does **not** inadvertently delay Pi steering until idle.
+- Shared `packages/client-runtime/src/state/compaction.ts` correlates `/compact` with terminal activities by `requestId`; no concrete merge defect found there.
+- Web `set_editor_text` still reaches the draft and cursor (`ChatView.tsx:2936–2944`). Mobile has no matching editor-update implementation in the searched source; that is a surface-parity gap, not demonstrated to be a new merge regression.
+
+**Suggested focused regression checks:** running non-Pi controls render without throwing; Pi Enter/click and modifier-Enter/modifier-click agree; Codex’s default queue setting applies equally to pointer and keyboard submission; compaction leaves draft text, inline contexts, and attachments untouched.
+
+Read-only source review only; no tests or builds run.
