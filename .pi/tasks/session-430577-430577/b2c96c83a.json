@@ -1,0 +1,19 @@
+{
+  "id": "b2c96c83a",
+  "name": "Verify Nix dependency hashes",
+  "command": "NP_LOCATION=/tmp/t3code-nix-sync /tmp/t3code-nix-sync/nix-portable nix --extra-experimental-features 'nix-command flakes' build .#unwrapped.pnpmDeps .#server.pnpmDeps --no-link --keep-going --show-trace",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-430577-430577/b2c96c83a.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715215633,
+  "endTime": 1789715509156,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 449325,
+  "bytesWritten": 21540,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

@@ -1,0 +1,67 @@
+[WARN] Unsupported engine: wanted: {"node":"^24.13.1"} (current: {"node":"v22.23.1","pnpm":"11.10.0"})
+Scope: all 16 workspace projects
+✓ Lockfile passes supply-chain policies (verified 11s ago)
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 119, reused 0, downloaded 0, added 0
+Progress: resolved 185, reused 4, downloaded 0, added 0
+Progress: resolved 249, reused 6, downloaded 0, added 0
+Progress: resolved 543, reused 6, downloaded 0, added 0
+Progress: resolved 687, reused 7, downloaded 0, added 0
+Progress: resolved 838, reused 7, downloaded 0, added 0
+Progress: resolved 1111, reused 7, downloaded 0, added 0
+Progress: resolved 1372, reused 7, downloaded 0, added 0
+Progress: resolved 1439, reused 9, downloaded 0, added 0
+Progress: resolved 1650, reused 10, downloaded 0, added 0
+Progress: resolved 1987, reused 11, downloaded 0, added 0
+Progress: resolved 2077, reused 12, downloaded 0, added 0
+[WARN] 8 deprecated subdependencies found: boolean@3.2.0, crypto-js@4.2.0, glob@7.2.3, inflight@1.0.6, lodash.isequal@4.5.0, node-domexception@1.0.0, rimraf@2.6.3, uuid@7.0.3
+Progress: resolved 2127, reused 12, downloaded 0, added 0
+Progress: resolved 2127, reused 13, downloaded 0, added 0
+Progress: resolved 2127, reused 14, downloaded 0, added 0
+Packages: +39 -43
+++++++++++++++++++++++++++++++++++++++------------------------------------------
+Progress: resolved 2127, reused 15, downloaded 0, added 0
+Progress: resolved 2127, reused 16, downloaded 0, added 0
+Progress: resolved 2127, reused 17, downloaded 0, added 0
+Progress: resolved 2127, reused 18, downloaded 0, added 0
+Progress: resolved 2127, reused 19, downloaded 0, added 0
+Progress: resolved 2127, reused 20, downloaded 0, added 0
+Progress: resolved 2127, reused 21, downloaded 0, added 0
+Progress: resolved 2127, reused 23, downloaded 0, added 0
+Progress: resolved 2127, reused 29, downloaded 0, added 0
+Progress: resolved 2127, reused 33, downloaded 0, added 0
+Progress: resolved 2127, reused 35, downloaded 0, added 0
+Progress: resolved 2127, reused 36, downloaded 0, added 0
+Progress: resolved 2127, reused 37, downloaded 0, added 0
+Progress: resolved 2127, reused 39, downloaded 0, added 0
+Progress: resolved 2127, reused 41, downloaded 0, added 0
+Progress: resolved 2127, reused 44, downloaded 0, added 0
+Progress: resolved 2127, reused 45, downloaded 0, added 0
+Progress: resolved 2127, reused 48, downloaded 0, added 0
+Progress: resolved 2127, reused 49, downloaded 0, added 0
+Progress: resolved 2127, reused 52, downloaded 0, added 0
+Progress: resolved 2127, reused 55, downloaded 0, added 0
+Progress: resolved 2127, reused 63, downloaded 0, added 0
+Progress: resolved 2127, reused 71, downloaded 0, added 0
+Progress: resolved 2127, reused 88, downloaded 0, added 0
+Progress: resolved 2127, reused 116, downloaded 0, added 0
+Progress: resolved 2127, reused 180, downloaded 0, added 0
+Progress: resolved 2127, reused 320, downloaded 0, added 0
+Progress: resolved 2127, reused 617, downloaded 0, added 0
+Progress: resolved 2127, reused 1675, downloaded 0, added 0
+Progress: resolved 2127, reused 1776, downloaded 2, added 4
+Progress: resolved 2127, reused 1776, downloaded 5, added 4
+Progress: resolved 2127, reused 1776, downloaded 6, added 4
+Progress: resolved 2127, reused 1776, downloaded 7, added 4
+Progress: resolved 2127, reused 1776, downloaded 13, added 4
+Progress: resolved 2127, reused 1776, downloaded 30, added 4
+Progress: resolved 2127, reused 1776, downloaded 32, added 7
+Progress: resolved 2127, reused 1776, downloaded 32, added 37
+Progress: resolved 2127, reused 1776, downloaded 32, added 38
+Progress: resolved 2127, reused 1776, downloaded 33, added 39, done
+. prepare$ effect-tsgo patch && vp config --no-agent
+. prepare: typescript skipped because its hash matches the replacement.
+. prepare: Done
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+Done in 1m 35.1s using pnpm v11.10.0

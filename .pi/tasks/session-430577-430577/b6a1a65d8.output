@@ -1,0 +1,52 @@
+DESCRIPTION
+  Run the T3 Code server.
+
+USAGE
+  t3 <subcommand> [flags] [<cwd>]
+
+ARGUMENTS
+  cwd string    Working directory for provider sessions (defaults to the current directory). (optional)
+
+FLAGS
+  --mode choice                              Runtime mode. `desktop` keeps loopback defaults unless overridden. (choices: web, desktop)
+  --port integer                             Port for the HTTP/WebSocket server.
+  --host string                              Host/interface to bind (for example 127.0.0.1, 0.0.0.0, or a Tailnet IP).
+  --base-dir string                          Explicit T3 Code data directory; runtime state is stored under userdata (equivalent to T3CODE_HOME).
+  --dev-url string                           Dev web URL to proxy/redirect to (equivalent to VITE_DEV_SERVER_URL).
+  --no-browser                               Disable automatic browser opening.
+  --bootstrap-fd integer                     Read one-time bootstrap secrets from the given file descriptor.
+  --auto-bootstrap-project-from-cwd          Create a project for the current working directory on startup when missing.
+  --log-websocket-events, --log-ws-events    Emit server-side logs for outbound WebSocket push traffic (equivalent to T3CODE_LOG_WS_EVENTS).
+  --tailscale-serve                          Configure Tailscale Serve to expose this backend over HTTPS on the Tailnet.
+  --tailscale-serve-port integer             HTTPS port for Tailscale Serve when --tailscale-serve is enabled.
+
+GLOBAL FLAGS
+  --help, -h                                                          Show help information
+  --version, -v                                                       Show version information
+  --wizard                                                            Start wizard mode for a command
+  --completions <bash|zsh|fish|sh>                                    Print shell completion script (choices: bash, zsh, fish, sh)
+  --log-level <all|trace|debug|info|warn|warning|error|fatal|none>    Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)
+
+SUBCOMMANDS
+  start        Run the T3 Code server.
+  serve        Run the T3 Code server without opening a browser and print headless pairing details.
+  app          Open a project in the running T3 Code desktop app.
+  pair         Mint a pairing token for a running T3 Code server and print it as a QR code.
+  auth         Manage the local auth control plane for headless deployments.
+  project      Manage projects.
+  service      Manage the T3 Code background service.
+  update       Download a newer t3 and switch this machine to it, including the background service when one is installed.
+  uninstall    Remove t3 from this machine: the background service, the launcher, and every downloaded version. Your projects and threads are kept.
+  theme        Inspect and set environment-wide theme defaults.
+  triage       Investigate a T3 Code problem on this machine with claude or codex, and help file a good issue.
+(node:455155) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WARN] Unsupported engine: wanted: {"node":"^24.13.1"} (current: {"node":"v22.23.1","pnpm":"11.10.0"})
+Scope: all 16 workspace projects
+✓ Lockfile passes supply-chain policies (verified 12m ago)
+Done in 3.7s using pnpm v11.10.0
+[1m[2mnote:[0m[0m You are running [94m`vp fmt`[39m as a Vite+ built-in command. If you meant to run the fmt npm script, use [94m`vpr fmt`[39m instead.
+Checking formatting...
+
+All matched files use the correct format.
+Finished in 362ms on 1 files using 4 threads.

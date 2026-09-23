@@ -1,0 +1,20 @@
+{
+  "id": "b389e661f",
+  "name": "Nix portable vorbereiten",
+  "command": "curl -fL --retry 2 https://github.com/DavHau/nix-portable/releases/download/v012/nix-portable-x86_64 -o /tmp/t3-nix-portable && chmod +x /tmp/t3-nix-portable && NP_LOCATION=/tmp/t3-nix-home /tmp/t3-nix-portable nix --version",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-68567-68567/b389e661f.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788860937922,
+  "endTime": 1788860962615,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 71360,
+  "bytesWritten": 5877,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600
+}

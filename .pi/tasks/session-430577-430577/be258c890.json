@@ -1,0 +1,19 @@
+{
+  "id": "be258c890",
+  "name": "Build Nix fork packages",
+  "command": "/nix/store/j823gnvpxh1fjibycmldrspkk3pgivwp-nix-2.20.6/bin/nix --extra-experimental-features 'nix-command flakes' --option build-users-group '' --option sandbox false build .#unwrapped .#server --no-link --keep-going -L",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-430577-430577/be258c890.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789716317156,
+  "endTime": 1789716967211,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 457907,
+  "bytesWritten": 469033,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

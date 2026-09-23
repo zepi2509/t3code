@@ -1,0 +1,14 @@
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/apps/server
+
+(node:450711) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:451514) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  11 passed (11)
+      Tests  341 passed (341)
+   Start at  09:10:03
+   Duration  147.07s (transform 48.72s, setup 8.93s, import 103.53s, tests 26.05s, environment 2ms)
+

@@ -1,0 +1,19 @@
+{
+  "id": "bfd42e8b8",
+  "name": "CI mit neuen Hashes",
+  "command": "gh run watch 34213529919 --repo zepi2509/t3code --exit-status > /tmp/t3-ci3-watch.log 2>&1; result=$?; gh run view 34213529919 --repo zepi2509/t3code; if [ \"$result\" -ne 0 ]; then gh run view 34213529919 --repo zepi2509/t3code --log-failed > /tmp/t3-ci3-failed.log; fi; exit \"$result\"",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-68567-68567/bfd42e8b8.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1788861718532,
+  "endTime": 1788862166057,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 76924,
+  "bytesWritten": 1600,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 7200
+}

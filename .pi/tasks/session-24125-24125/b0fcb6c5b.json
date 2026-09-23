@@ -1,0 +1,20 @@
+{
+  "id": "b0fcb6c5b",
+  "name": "Retest Pi startup",
+  "command": "cd /workspace/t3code-pi && ./node_modules/.bin/vp test run apps/server/src/provider/Layers/PiAdapter.integration.test.ts",
+  "description": "Run the focused Pi adapter integration test with the worktree-local Vite+ binary.",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-24125-24125/b0fcb6c5b.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789028244197,
+  "endTime": 1789028277058,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 28911,
+  "bytesWritten": 373,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}

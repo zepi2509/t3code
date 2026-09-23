@@ -1,0 +1,21 @@
+{
+  "id": "bc7aa50c7",
+  "name": "Test Pi startup",
+  "command": "cd /workspace/t3code-pi && vp test run apps/server/src/provider/Layers/PiAdapter.integration.test.ts",
+  "description": "Run the focused Pi adapter integration test after extending only the startup handshake timeout.",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-24125-24125/bc7aa50c7.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789028172291,
+  "endTime": 1789028173406,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 28376,
+  "bytesWritten": 241,
+  "isAgent": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}

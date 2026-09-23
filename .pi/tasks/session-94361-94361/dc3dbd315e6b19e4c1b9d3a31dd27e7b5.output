@@ -1,0 +1,8 @@
+Warning: No project session found with id 'delegate-d4dc5f818e4d6c36fba8bcc840bf1849'; creating a new session with that id.
+No confirmed must-fix regression in the code inspected.
+
+- Legacy compaction uses deterministic replay command/message IDs.
+- Pi usage is collected at `message_end`, then finalized at `agent_settled`; interrupted/failed turns cannot claim complete usage.
+- Mobile delivery mode is present through enqueue, persistence, settings resolution, and dispatch.
+
+**Review incomplete:** investigation stopped before I could fully verify ChatView send races, reactor compaction guards, interrupt handling, or task payload compatibility with the shared fold. This is not a correctness clearance for those paths.

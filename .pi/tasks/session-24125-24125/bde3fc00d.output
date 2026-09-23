@@ -1,0 +1,10 @@
+~/apps/server$ tsc --noEmit ⊘ cache disabled
+src/background/HostPowerMonitor.ts(69,9): error TS2345: Argument of type '(self: Option<{ readonly source: "unknown" | "node-macos-shell" | "node-macos-native" | "node-linux" | "node-windows" | "electron-main"; readonly idle: "unknown" | "true" | "false"; ... 7 more ...; readonly updatedAt: Utc; }>) => Effect<...> | Effect<...>' is not assignable to parameter of type '(a: Option<{ readonly source: "unknown" | "node-macos-shell" | "node-macos-native" | "node-linux" | "node-windows" | "electron-main"; readonly idle: "unknown" | "true" | "false"; ... 7 more ...; readonly updatedAt: Utc; }>) => Effect<...>'.
+  Type 'Effect<boolean, never, never> | Effect<void, never, never>' is not assignable to type 'Effect<boolean, never, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Type 'Effect<void, never, never>' is not assignable to type 'Effect<boolean, never, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Type 'void' is not assignable to type 'boolean'.
+src/resourceTelemetry/NativeTelemetryClient.ts(509,13): error TS2345: Argument of type '(self: Option<Deferred<readonly { readonly pid: number; readonly ppid: number; readonly name: string; }[], NativeTelemetryClientError>>) => Effect<...> | Effect<...>' is not assignable to parameter of type '(a: Option<Deferred<readonly { readonly pid: number; readonly ppid: number; readonly name: string; }[], NativeTelemetryClientError>>) => Effect<boolean, never, never>'.
+  Type 'Effect<boolean, never, never> | Effect<void, never, never>' is not assignable to type 'Effect<boolean, never, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+    Type 'Effect<void, never, never>' is not assignable to type 'Effect<boolean, never, never>' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+      Type 'void' is not assignable to type 'boolean'.
+

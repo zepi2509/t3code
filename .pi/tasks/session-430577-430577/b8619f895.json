@@ -1,0 +1,18 @@
+{
+  "id": "b8619f895",
+  "name": "Lint fork integration files",
+  "command": "git diff --name-only -z upstream/main -- '*.ts' '*.tsx' | xargs -0 -r mise exec vp@0.2.2 -- vp lint --report-unused-disable-directives",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-430577-430577/b8619f895.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789715243291,
+  "endTime": 1789715324959,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 449576,
+  "bytesWritten": 793,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

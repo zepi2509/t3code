@@ -1,0 +1,152 @@
+              threadId: thread.id,
+              turnId,
+              createdAt: now,
+              commandTag: "reasoning-complete",
+              finalDeltaCommandTag: "reasoning-delta-finalize",
+              hasProjectedMessage: existingReasoningMessage !== undefined,
+              role: "reasoning",
+              ...(fallbackText !== undefined ? { fallbackText } : {}),
+            });
+          }
+        }
+      }
+
+      const assistantCompletion =
+        event.type === "item.completed" && event.payload.itemType === "assistant_message"
+          ? {
+              messageId: MessageId.make(
+                `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
+              ),
+              fallbackText: event.payload.detail,
+            }
+          : undefined;
+      const proposedPlanCompletion =
+        event.type === "turn.proposed.completed"
+          ? {
+              planId: proposedPlanIdFromEvent(event, thread.id),
+              turnId: toTurnId(event.turnId),
+              planMarkdown: event.payload.planMarkdown,
+            }
+          : undefined;
+
+      if (assistantCompletion) {
+        const turnId = toTurnId(event.turnId);
+        if (turnId) {
+          yield* finalizeActiveSegmentForTurn({
+            event,
+            threadId: thread.id,
+            turnId,
+            createdAt: now,
+            commandTag: "reasoning-complete-on-assistant-completion",
+            finalDeltaCommandTag: "reasoning-delta-finalize-on-assistant-completion",
+            hasProjectedMessage: false,
+            role: "reasoning",
+          });
+        }
+        const activeAssistantMessageId = turnId
+          ? yield* getActiveAssistantMessageIdForTurn(thread.id, turnId)
+          : Option.none<MessageId>();
+        const assistantMessageId = Option.getOrElse(
+          activeAssistantMessageId,
+          () => assistantCompletion.messageId,
+        );
+        const [existingAssistantMessage, hasAssistantMessagesForTurn] = yield* Effect.all([
+          getThreadMessageById(thread.id, assistantMessageId),
+          turnId === undefined
+            ? Effect.succeed(false)
+            : projectionThreadMessages.hasAssistantMessageForTurn({
+                threadId: thread.id,
+                turnId,
+                streamingOnly: false,
+              }),
+        ]);
+        const shouldApplyFallbackCompletionText =
+          !existingAssistantMessage || existingAssistantMessage.text.length === 0;
+
+        const shouldSkipRedundantCompletion =
+          Option.isNone(activeAssistantMessageId) &&
+          turnId !== undefined &&
+          hasAssistantMessagesForTurn &&
+          (assistantCompletion.fallbackText?.trim().length ?? 0) === 0;
+
+        if (!shouldSkipRedundantCompletion) {
+          if (turnId && Option.isNone(activeAssistantMessageId)) {
+            yield* rememberAssistantMessageId(thread.id, turnId, assistantMessageId);
+          }
+
+          yield* finalizeAssistantMessage({
+            event,
+            threadId: thread.id,
+            messageId: assistantMessageId,
+            ...(turnId ? { turnId } : {}),
+            createdAt: now,
+            commandTag: "assistant-complete",
+            finalDeltaCommandTag: "assistant-delta-finalize",
+            hasProjectedMessage: existingAssistantMessage !== undefined,
+            ...(assistantCompletion.fallbackText !== undefined && shouldApplyFallbackCompletionText
+              ? { fallbackText: assistantCompletion.fallbackText }
+              : {}),
+          });
+
+          if (turnId) {
+            yield* forgetAssistantMessageId(thread.id, turnId, assistantMessageId);
+          }
+        }
+
+        if (turnId) {
+          const state = yield* getAssistantSegmentStateForTurn(thread.id, turnId);
+          if (Option.isSome(state)) {
+            yield* setAssistantSegmentStateForTurn(thread.id, turnId, {
+              ...state.value,
+              activeMessageId: null,
+            });
+          }
+        }
+      }
+
+      if (proposedPlanCompletion) {
+        yield* finalizeBufferedProposedPlan({
+          event,
+          threadId: thread.id,
+          planId: proposedPlanCompletion.planId,
+          ...(proposedPlanCompletion.turnId ? { turnId: proposedPlanCompletion.turnId } : {}),
+          fallbackMarkdown: proposedPlanCompletion.planMarkdown,
+          updatedAt: now,
+        });
+      }
+
+      if (isTerminalTurn) {
+        const turnId = toTurnId(event.turnId);
+        if (turnId) {
+          const userInputActivities =
+            yield* projectionThreadActivityRepository.listUserInputLifecycleByThreadId({
+              threadId: thread.id,
+            });
+          const pendingRequestIds = new Set<string>();
+          for (const activity of userInputActivities) {
+            const payload =
+              typeof activity.payload === "object" && activity.payload !== null
+                ? (activity.payload as Record<string, unknown>)
+                : null;
+            const requestId = payload?.requestId;
+            if (typeof requestId !== "string") continue;
+            if (
+              activity.kind === "user-input.requested" &&
+              activity.turnId === turnId &&
+              payload?.responseMode !== "message"
+            ) {
+              pendingRequestIds.add(requestId);
+            } else if (activity.kind === "user-input.resolved") {
+              pendingRequestIds.delete(requestId);
+            }
+          }
+          // A terminal turn cannot accept native callback answers. Message-mode
+          // questions may outlive that turn and still accept a later user message.
+          for (const requestId of pendingRequestIds) {
+            yield* orchestrationEngine.dispatch({
+              type: "thread.activity.append",
+              commandId: yield* providerCommandId(event, "terminal-user-input-resolved"),
+              threadId: thread.id,
+              activity: {
+
+[363 more lines in file. Use offset=2375 to continue.]

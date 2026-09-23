@@ -1,0 +1,23 @@
+warning: Git tree '/workspace/t3code-pi' is dirty
+proot warning: ptrace(PEEKDATA): Bad address
+error:
+       … while calling the 'derivationStrict' builtin
+         at <nix/derivation-internal.nix>:9:12:
+            8|
+            9|   strict = derivationStrict drvAttrs;
+             |            ^
+           10|
+
+       … while evaluating derivation 't3code-unwrapped-pnpm-deps'
+         whose name attribute is located at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:651:11
+
+       … while evaluating attribute 'builder' of derivation 't3code-unwrapped-pnpm-deps'
+         at /nix/store/d1qrs4cfnhmkhkripp32pyn64c8ldjzq-source/pkgs/stdenv/generic/make-derivation.nix:692:11:
+          691|
+          692|           builder = attrs.realBuilder or stdenvShell;
+             |           ^
+          693|           args =
+
+       (stack trace truncated; use '--show-trace' to show the full trace)
+
+       error: opening file '/nix/store/j76if9fyh6aw41qvc8nqr9c8ha4azayn-hex0-seed.drv': Bad address
