@@ -1,0 +1,21 @@
+{
+  "id": "bde3fc00d",
+  "name": "Check Pi adapter",
+  "command": "cd /workspace/t3code-pi && ./node_modules/.bin/vp run --filter t3 typecheck && ./node_modules/.bin/vp lint apps/server/src/provider/Layers/PiAdapter.ts apps/server/src/provider/Layers/PiAdapter.integration.test.ts --report-unused-disable-directives",
+  "description": "Run the server typecheck and targeted lint for the Pi startup timeout fix.",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-24125-24125/bde3fc00d.output",
+  "cwd": "/workspace/t3code-pi",
+  "startTime": 1789028301840,
+  "endTime": 1789028484257,
+  "exitCode": 2,
+  "signal": null,
+  "pid": 29462,
+  "bytesWritten": 2118,
+  "isAgent": false,
+  "error": "Exited with code 2",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300
+}

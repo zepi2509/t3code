@@ -1,0 +1,20 @@
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi/apps/desktop
+
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  09:16:42
+   Duration  16.64s (transform 2.80s, setup 249ms, import 15.54s, tests 529ms, environment 0ms)
+
+[1m[2mnote:[0m[0m You are running [94m`vp test`[39m as a Vite+ built-in command. If you meant to run the test npm script, use [94m`vpr test`[39m instead.
+
+ RUN  v4.1.11 /workspace/t3code-pi
+
+
+ Test Files  1 passed (1)
+      Tests  71 passed (71)
+   Start at  09:17:00
+   Duration  3.78s (transform 958ms, setup 207ms, import 2.18s, tests 1.10s, environment 0ms)
+
