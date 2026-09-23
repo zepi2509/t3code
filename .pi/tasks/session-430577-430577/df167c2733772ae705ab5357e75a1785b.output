@@ -1,0 +1,32 @@
+Warning: No project session found with id 'delegate-4eaba188ad72a69b7884f79cfa0706c8'; creating a new session with that id.
+Found **three concrete behavioral API adaptations**, all in `apps/server/src/textGeneration/PiTextGeneration.ts`. They are silent omissions rather than TypeScript errors because upstream added optional fields.
+
+1. **Commit-generation policy is ignored** — lines **204–210**, `buildCommitMessagePrompt`.
+   - Add `policy: input.policy`.
+   - Current upstream reference: `CursorTextGeneration.ts:172–180`.
+
+2. **PR-generation policy and change-request template are ignored** — lines **230–238**, `buildPrContentPrompt`.
+   - Add `policy: input.policy` and `changeRequestTemplate: input.changeRequestTemplate`.
+   - Both are now part of `PrContentGenerationInput` in `TextGeneration.ts:34–44`; Cursor already forwards them.
+
+3. **Thread-title enrichment/refinement is dropped** — lines **270–285**, `generateThreadTitle`.
+   - Forward `previousTitle: input.previousTitle` and `linkedContext: input.linkedContext` to `buildThreadTitlePrompt`.
+   - Preserve the generated refinement signal:
+     ```ts
+     return {
+       title: sanitizeThreadTitle(generated.title),
+       ...(generated.needsRefinement ? { needsRefinement: true } : {}),
+     };
+     ```
+   - The shared service now resolves linked context before calling the provider (`TextGeneration.ts`, `make.generateThreadTitle`), so Pi currently discards work already performed upstream.
+   - Reference implementation: `CursorTextGeneration.ts:254–276`.
+
+**Other inspected interfaces appear compatible; no mandatory rewrite found:**
+- `PiDriver.ts` satisfies the current `ProviderDriver`/`ProviderInstance` shape. Its local identity stamper duplicates the new `Drivers/instanceIdentity.ts`; optionally replace it with that helper, passing `driverKind: DRIVER_KIND`. This is cleanup, not a compatibility fix.
+- `Services/PiAdapter.ts` inherits the current adapter contract. The new `promptlessTurnContinuation` capability is optional; leaving it absent is correct because Pi currently rejects empty turns (`Layers/PiAdapter.ts:1687–1693`). Do not advertise it without implementing native continuation.
+- Native compaction’s optional model-selection argument does not invalidate Pi’s one-argument handler.
+- Pi runtime raw-source values remain explicitly accepted (`packages/contracts/src/providerRuntime.ts:31–32`).
+- Pi terminal events already carry `tokenUsage` (`PiAdapter.ts:450–461`), using the current `TurnTokenUsage` structure in `PiTurnUsage.ts`; no obvious schema adaptation needed.
+- Instance IDs are included in inspected session/runtime event producers.
+
+Recommended focused checks: Pi text-generation tests asserting policy/template prompt inclusion and title context/refinement propagation, followed by existing Pi adapter/runtime-ingestion tests. **No tests or typecheck executed; read-only review.** Excluded the requested reactor and web/mobile conflicts.
