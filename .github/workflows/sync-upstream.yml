@@ -23,10 +23,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Test sync safeguards
-        run: node --test .github/scripts/sync-upstream.test.mjs
+        run: node --test .github/scripts/sync-upstream.test.mjs infra/sync-webhook/server.test.mjs
       - id: sync
         name: Rebase onto upstream main
+        continue-on-error: true
         run: |
           base_ref="$(git rev-parse HEAD)"
           echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
@@ -35,6 +37,20 @@ jobs:
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch upstream main
           bash .github/scripts/rebase-upstream.sh upstream/main
+
+      - id: recover
+        name: Resolve source conflicts with Pi
+        if: steps.sync.outcome == 'failure'
+        timeout-minutes: 35
+        env:
+          SYNC_WEBHOOK_URL: ${{ secrets.SYNC_WEBHOOK_URL }}
+          SYNC_WEBHOOK_SECRET: ${{ secrets.SYNC_WEBHOOK_SECRET }}
+        run: bash .github/scripts/recover-upstream-with-pi.sh
+
+      - id: finalize
+        name: Preserve fork workflow and detect dependency changes
+        run: |
+          base_ref="${{ steps.sync.outputs.base_ref }}"
           if ! git diff --quiet "$base_ref" -- .github/workflows; then
             git restore --source="$base_ref" --staged --worktree .github/workflows
             git commit --amend --no-edit
@@ -46,24 +62,24 @@ jobs:
           fi
 
       - name: Setup Vite+
-        if: steps.sync.outputs.pnpm_changed == 'true'
+        if: steps.finalize.outputs.pnpm_changed == 'true' || steps.recover.outcome == 'success'
         uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: package.json
           run-install: false
 
       - name: Regenerate and verify pnpm lockfile
-        if: steps.sync.outputs.pnpm_changed == 'true'
+        if: steps.finalize.outputs.pnpm_changed == 'true'
         run: |
           vp install --lockfile-only --no-frozen-lockfile --ignore-scripts
           vp install --lockfile-only --frozen-lockfile --ignore-scripts
 
       - name: Install Nix
-        if: steps.sync.outputs.pnpm_changed == 'true'
+        if: steps.finalize.outputs.pnpm_changed == 'true'
         uses: DeterminateSystems/nix-installer-action@v21
 
       - name: Refresh dependency hashes and verify Nix builds
-        if: steps.sync.outputs.pnpm_changed == 'true'
+        if: steps.finalize.outputs.pnpm_changed == 'true'
         run: |
           node .github/scripts/update-nix-hashes.mjs
           nix build .#desktop .#server --no-link --show-trace
@@ -72,11 +88,29 @@ jobs:
             git commit -m "fix(build): refresh generated dependencies after upstream sync"
           fi
 
+      - name: Validate Pi recovery before publishing
+        if: steps.recover.outcome == 'success'
+        run: |
+          vp install --frozen-lockfile
+          vp run --filter @t3tools/contracts typecheck
+          vp run --filter t3 typecheck
+          vp run --filter @t3tools/web typecheck
+          vp run --filter @t3tools/contracts test
+          vp run --filter t3 test
+          vp run --filter @t3tools/web test
+          vp run --filter @t3tools/web build
+          test -z "$(git status --porcelain)"
+
       - id: publish
         name: Push synced main
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          git fetch upstream main
           git merge-base --is-ancestor upstream/main HEAD
-          git push --force-with-lease=refs/heads/main:${{ steps.sync.outputs.base_ref }} origin HEAD:main
+          git -c core.hooksPath=/dev/null -c credential.helper= \
+            -c 'credential.helper=!f() { echo username=x-access-token; echo password="$GH_TOKEN"; }; f' \
+            push --force-with-lease=refs/heads/main:${{ steps.sync.outputs.base_ref }} origin HEAD:main
           echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - id: release
