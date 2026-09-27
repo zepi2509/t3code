@@ -18,6 +18,7 @@ const { fileURLToPath } = NodeURL;
 
 const rebaseScript = fileURLToPath(new URL("./rebase-upstream.sh", import.meta.url));
 const hashesScript = fileURLToPath(new URL("./update-nix-hashes.mjs", import.meta.url));
+const recoverScript = fileURLToPath(new URL("./recover-upstream-with-pi.sh", import.meta.url));
 
 for (const version of [
   "0.0.43-preview.20260923.2138",
@@ -100,6 +101,72 @@ for (const conflict of ["pnpm-lock.yaml", "source.txt"]) {
     }
   });
 }
+
+test("GitHub recovers a linear Pi bundle without giving Pi push credentials", (t) => {
+  const root = workspace(t);
+  const runner = join(root, "runner");
+  const candidate = join(root, "candidate");
+  const git = (cwd, ...args) =>
+    execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  git(root, "init", "-q", "-b", "main", "runner");
+  git(runner, "config", "user.name", "Sync test");
+  git(runner, "config", "user.email", "sync@example.invalid");
+  writeFileSync(join(runner, "source.txt"), "base\n");
+  git(runner, "add", ".");
+  git(runner, "commit", "-qm", "base");
+  git(runner, "branch", "upstream");
+  writeFileSync(join(runner, "source.txt"), "fork\n");
+  git(runner, "commit", "-qam", "fork");
+  const base = git(runner, "rev-parse", "HEAD");
+  git(runner, "checkout", "-q", "upstream");
+  writeFileSync(join(runner, "source.txt"), "upstream\n");
+  git(runner, "commit", "-qam", "upstream");
+  const upstream = git(runner, "rev-parse", "HEAD");
+  git(runner, "checkout", "-q", "main");
+  git(runner, "update-ref", "refs/remotes/upstream/main", upstream);
+
+  git(root, "clone", "-q", runner, candidate);
+  git(candidate, "config", "user.name", "Pi sync assistant");
+  git(candidate, "config", "user.email", "pi@example.invalid");
+  git(candidate, "update-ref", "refs/remotes/upstream/main", upstream);
+  assert.notEqual(spawnSync("git", ["rebase", "upstream/main"], { cwd: candidate }).status, 0);
+  writeFileSync(join(candidate, "source.txt"), "upstream and fork\n");
+  git(candidate, "add", "source.txt");
+  execFileSync("git", ["rebase", "--continue"], {
+    cwd: candidate,
+    env: { ...env, GIT_EDITOR: "true" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const expected = git(candidate, "rev-parse", "HEAD");
+  const bundle = join(root, "candidate.bundle");
+  git(candidate, "bundle", "create", bundle, "upstream/main..main");
+
+  assert.notEqual(spawnSync("git", ["rebase", "upstream/main"], { cwd: runner }).status, 0);
+  writeFileSync(
+    join(root, "curl"),
+    '#!/bin/bash\nfor arg in "$@"; do [[ "$arg" == --data-binary ]] && exit 0; done\nwhile [[ $# -gt 0 ]]; do\n  if [[ "$1" == --output ]]; then cp "$TEST_BUNDLE" "$2"; break; fi\n  shift\ndone\nprintf 200\n',
+    { mode: 0o755 },
+  );
+  const result = spawnSync("bash", [recoverScript], {
+    cwd: runner,
+    encoding: "utf8",
+    env: {
+      ...env,
+      PATH: `${root}:${env.PATH}`,
+      TEST_BUNDLE: bundle,
+      SYNC_WEBHOOK_URL: "https://example.invalid/sync-failed",
+      SYNC_WEBHOOK_SECRET: "test-only-secret",
+      GITHUB_REPOSITORY: "zepi2509/t3code",
+      GITHUB_RUN_ID: "123",
+      GITHUB_SHA: base,
+      RUNNER_TEMP: root,
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(git(runner, "rev-parse", "HEAD"), expected);
+  assert.equal(git(runner, "status", "--porcelain"), "");
+  git(runner, "merge-base", "--is-ancestor", "upstream/main", "HEAD");
+});
 
 for (const scenario of ["mismatch", "cached", "network"]) {
   const mismatch = scenario !== "network";
