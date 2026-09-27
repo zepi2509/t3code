@@ -42,6 +42,7 @@
           preBuild = ''
             mkdir -p .generated/third-party-licenses/spdx
             cp -r ${spdxLicenseList}/json/details .generated/third-party-licenses/spdx/v3.28.0
+            chmod -R u+w .generated/third-party-licenses/spdx/v3.28.0
             export npm_config_nodedir=${pkgs.nodejs}
             export ELECTRON_SKIP_BINARY_DOWNLOAD=1
             pnpm rebuild --pending "''${pnpmInstallFlags[@]}" --filter '!@t3tools/monorepo'
