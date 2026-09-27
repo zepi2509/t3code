@@ -201,7 +201,7 @@ function runJob(request, log) {
       [
         "-k",
         "10s",
-        "20m",
+        "30m",
         "bash",
         "/app/reconcile.sh",
         String(request.run_id),
