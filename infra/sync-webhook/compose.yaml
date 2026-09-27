@@ -1,0 +1,45 @@
+services:
+  sync-webhook:
+    image: t3-sync-webhook:local
+    build:
+      context: .
+      network: host
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 2g
+    environment:
+      SYNC_PI_MODEL: ${SYNC_PI_MODEL:-gpt-6-sol}
+    dns:
+      - ${SYNC_WEBHOOK_DNS:-1.1.1.1}
+    networks:
+      - remote-workspace
+    volumes:
+      - type: bind
+        source: ${SYNC_PI_INSTALL_DIR:?set the Docker-host Pi installation path}
+        target: /opt/agent-tools/pi
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SYNC_PI_AGENT_DIR:?set the Docker-host Pi agent directory}
+        target: /home/node/.pi/agent
+        bind:
+          create_host_path: false
+      - sync-jobs:/data
+      - webhook-secret:/run/secrets:ro
+    tmpfs:
+      - /tmp:rw,nosuid,size=512m
+
+volumes:
+  sync-jobs:
+  webhook-secret:
+    name: t3-sync-webhook-secret
+
+networks:
+  remote-workspace:
+    external: true
+    name: remote-workspace_default
