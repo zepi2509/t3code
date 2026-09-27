@@ -43,7 +43,8 @@ node_modules/
 .env*
 !.env.example
 
-# Local Pi session artifacts must never be committed.
+# Local Pi session artifacts and webhook secrets must never be committed.
 /.pi/
+/infra/sync-webhook/webhook-secret
 # pnpm content-addressable store; never belongs in the repo.
 .pnpm-store/
