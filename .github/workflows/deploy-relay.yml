@@ -4,9 +4,7 @@ on:
   push:
     branches:
       - main
-  # Alchemy does not redeploy the Worker when only a Config value read in its
-  # Init changes (alchemy-run/alchemy#1831), so a changed repository variable
-  # needs a forced deploy to reach production.
+  # A changed repository variable needs a forced deploy to reach production.
   workflow_dispatch:
     inputs:
       force:
@@ -26,7 +24,7 @@ concurrency:
 jobs:
   deploy_relay:
     name: Deploy production relay
-    # A manual run from another branch would deploy that branch to production.
+    # A manual run from another branch must not deploy that branch to production.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
