@@ -13,7 +13,7 @@ trap 'rm -rf -- "$work"' EXIT
 export GIT_EDITOR=true GIT_TERMINAL_PROMPT=0
 
 rm -rf -- "$work"
-git clone --quiet --filter=blob:none --branch main --single-branch \
+git clone --quiet --branch main --single-branch \
   https://github.com/zepi2509/t3code.git "$work"
 cd "$work"
 if [[ "$(git rev-parse HEAD)" != "$base" ]]; then
