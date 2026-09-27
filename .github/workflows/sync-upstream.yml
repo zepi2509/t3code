@@ -32,6 +32,7 @@ jobs:
         run: |
           base_ref="$(git rev-parse HEAD)"
           echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
+          cp .github/scripts/recover-upstream-with-pi.sh "$RUNNER_TEMP/recover-upstream-with-pi.sh"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git remote add upstream https://github.com/pingdotgg/t3code.git
@@ -45,7 +46,7 @@ jobs:
         env:
           SYNC_WEBHOOK_URL: ${{ secrets.SYNC_WEBHOOK_URL }}
           SYNC_WEBHOOK_SECRET: ${{ secrets.SYNC_WEBHOOK_SECRET }}
-        run: bash .github/scripts/recover-upstream-with-pi.sh
+        run: bash "$RUNNER_TEMP/recover-upstream-with-pi.sh"
 
       - id: finalize
         name: Preserve fork workflow and detect dependency changes
