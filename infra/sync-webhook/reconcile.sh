@@ -40,7 +40,7 @@ else
   conflicts="$(git diff --name-only --diff-filter=U)"
   echo "Unresolved files: $conflicts"
   # The container has no GitHub write credentials; Pi may only prepare a local result.
-  timeout -k 10s 15m pi -p --no-session --no-approve \
+  timeout -k 10s 25m pi -p --no-session --no-approve \
     --no-extensions --no-skills --no-prompt-templates --no-context-files \
     --provider openai-codex --model "${SYNC_PI_MODEL:-gpt-6-sol}" --thinking xhigh \
     --tools read,bash,edit,write,grep,find,ls \

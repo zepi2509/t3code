@@ -28,7 +28,7 @@ result_path="/result/$GITHUB_RUN_ID"
 result_url="${SYNC_WEBHOOK_URL%/sync-failed}$result_path"
 result_signature="$(printf 'GET %s' "$result_path" | openssl dgst -sha256 -hmac "$SYNC_WEBHOOK_SECRET" | awk '{print $2}')"
 bundle="$RUNNER_TEMP/sync-$GITHUB_RUN_ID.bundle"
-for ((attempt = 0; attempt < 150; attempt++)); do
+for ((attempt = 0; attempt < 210; attempt++)); do
   code="$(curl --silent --show-error --retry 2 --retry-all-errors \
     --connect-timeout 5 --max-time 30 \
     -H "X-Sync-Signature: sha256=$result_signature" \
@@ -39,7 +39,7 @@ for ((attempt = 0; attempt < 150; attempt++)); do
     *) echo "Pi result unavailable (HTTP $code); sync stays unpublished." >&2; exit 1 ;;
   esac
 done
-[[ "${code:-}" == 200 ]] || { echo 'Pi did not finish within 25 minutes.' >&2; exit 1; }
+[[ "${code:-}" == 200 ]] || { echo 'Pi did not finish within 35 minutes.' >&2; exit 1; }
 
 # The bundle contains no credentials; GitHub verifies and tests it before publishing.
 git rebase --abort
