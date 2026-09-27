@@ -42,7 +42,7 @@ jobs:
       - id: recover
         name: Resolve source conflicts with Pi
         if: steps.sync.outcome == 'failure'
-        timeout-minutes: 35
+        timeout-minutes: 40
         env:
           SYNC_WEBHOOK_URL: ${{ secrets.SYNC_WEBHOOK_URL }}
           SYNC_WEBHOOK_SECRET: ${{ secrets.SYNC_WEBHOOK_SECRET }}
