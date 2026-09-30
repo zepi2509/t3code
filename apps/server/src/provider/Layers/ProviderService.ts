@@ -1126,9 +1126,9 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         canonicalEvent.type === "turn.aborted"
       ) {
         yield* recordTurnCompletedAnalytics(source, canonicalEvent);
-        if (source.provider === "claudeAgent") {
-          // Background Claude turns have no sendTurn response to persist their
-          // new native boundary. Save it before clients can checkpoint the turn.
+        if (source.provider === "claudeAgent" || source.provider === "pi") {
+          // Background turns have no sendTurn response to persist their native
+          // boundaries. Save the current suffix before clients can checkpoint.
           yield* Effect.gen(function* () {
             const adapter = yield* registry.getByInstance(source.instanceId);
             const session = (yield* adapter.listSessions()).find(
@@ -1151,12 +1151,31 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
             }
           }).pipe(
             Effect.catch((cause) =>
-              Effect.logWarning("failed to persist Claude turn resume state", { cause }),
+              Effect.logWarning("failed to persist provider turn resume state", { cause }),
             ),
           );
         }
       } else if (canonicalEvent.type === "session.exited") {
         yield* clearTurnAnalyticsSession(source.instanceId, canonicalEvent.threadId);
+        if (source.provider === "pi" && canonicalEvent.payload.exitKind === "error") {
+          yield* Effect.gen(function* () {
+            const binding = yield* directory.getBinding(canonicalEvent.threadId);
+            if (Option.isSome(binding) && binding.value.providerInstanceId === source.instanceId) {
+              yield* directory.upsert({
+                threadId: canonicalEvent.threadId,
+                provider: source.provider,
+                providerInstanceId: source.instanceId,
+                resumeCursor: null,
+                status: "stopped",
+                runtimePayload: { activeTurnId: null },
+              });
+            }
+          }).pipe(
+            Effect.catch((cause) =>
+              Effect.logWarning("failed to invalidate stopped Pi resume state", { cause }),
+            ),
+          );
+        }
       }
       if (
         isCompactedEvent(canonicalEvent) &&
@@ -1776,6 +1795,33 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
                   errorType: error._tag,
                 }),
               ),
+              Effect.catch((error) =>
+                Effect.gen(function* () {
+                  if (routed.adapter.provider === "pi") {
+                    const session = (yield* routed.adapter.listSessions()).find(
+                      (session) => session.threadId === routed.threadId,
+                    );
+                    if (session) {
+                      // A rejected/failed submission still produced a logical
+                      // turn. Do not lose its boundary on the next restart.
+                      yield* upsertSessionBinding(
+                        { ...session, providerInstanceId: routed.instanceId },
+                        input.threadId,
+                      );
+                    } else {
+                      yield* directory.upsert({
+                        threadId: input.threadId,
+                        provider: routed.adapter.provider,
+                        providerInstanceId: routed.instanceId,
+                        resumeCursor: null,
+                        status: "stopped",
+                        runtimePayload: { activeTurnId: null },
+                      });
+                    }
+                  }
+                  return yield* error;
+                }),
+              ),
             );
             yield* associateTurnAnalytics({
               providerInstanceId: routed.instanceId,
@@ -2273,7 +2319,29 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         "provider.thread_id": input.threadId,
         "provider.rollback_turns": input.numTurns,
       });
-      yield* routed.adapter.rollbackThread(routed.threadId, input.numTurns);
+      yield* routed.adapter.rollbackThread(routed.threadId, input.numTurns).pipe(
+        Effect.catch((error) =>
+          Effect.gen(function* () {
+            if (
+              error._tag === "ProviderAdapterRequestError" &&
+              error.provider === "pi" &&
+              error.method === "rollbackThread"
+            ) {
+              // Pi stopped after an indeterminate native branch change. Never
+              // reconnect this thread to its pre-rewind history.
+              yield* directory.upsert({
+                threadId: input.threadId,
+                provider: routed.adapter.provider,
+                providerInstanceId: routed.instanceId,
+                resumeCursor: null,
+                status: "stopped",
+                runtimePayload: { activeTurnId: null },
+              });
+            }
+            return yield* error;
+          }),
+        ),
+      );
       const session = (yield* routed.adapter.listSessions()).find(
         (session) => session.threadId === routed.threadId,
       );

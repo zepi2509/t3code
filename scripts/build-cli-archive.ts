@@ -11,6 +11,7 @@
  *
  *   t3 | t3.exe          the single-executable
  *   client/              web app served by the server
+ *   assets/pi/           Pi approval extension loaded by the provider
  *   resource-monitor/    per-platform Rust helper, same paths as the npm package
  *   node_modules/        runtime externals (node-pty, msgpackr-extract, fff)
  */
@@ -140,6 +141,26 @@ const requireInput = Effect.fn("requireInput")(function* (inputPath: string, hin
   if (!(yield* fs.exists(inputPath))) {
     return yield* new CliArchiveInputMissingError({ inputPath, hint });
   }
+});
+
+/** Stages the runtime-loaded Pi extension beside the single-executable. */
+export const stageCliArchiveAssets = Effect.fn("stageCliArchiveAssets")(function* (input: {
+  readonly serverDistDir: string;
+  readonly contentDir: string;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const asset = "assets/pi/t3-approvals.ts";
+  const sourcePath = path.join(input.serverDistDir, asset);
+  const hint = "Run `vp run --filter t3 build` to bundle the Pi approval extension first.";
+  yield* requireInput(sourcePath, hint);
+  const stat = yield* fs.stat(sourcePath);
+  if (stat.type !== "File" || Number(stat.size) === 0) {
+    return yield* new CliArchiveInputMissingError({ inputPath: sourcePath, hint });
+  }
+  const targetPath = path.join(input.contentDir, asset);
+  yield* fs.makeDirectory(path.dirname(targetPath), { recursive: true });
+  yield* fs.copyFile(sourcePath, targetPath);
 });
 
 /**
@@ -508,6 +529,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   yield* Effect.log(`[cli-archive] Staging ${stem}...`);
   yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
   yield* stageWebClient(webClient, path.join(contentDir, "client"));
+  yield* stageCliArchiveAssets({ serverDistDir: path.join(serverDir, "dist"), contentDir });
   yield* fs.copy(resourceMonitorDir, path.join(contentDir, "resource-monitor"));
   yield* stageRuntimeExternals({
     repoRoot,

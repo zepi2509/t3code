@@ -55,23 +55,32 @@ describe("t3-approvals: gateDecision (fail-closed)", () => {
 });
 
 describe("t3-approvals: describeToolCall", () => {
-  it("prefers a command string", () => {
-    expect(describeToolCall("bash", { command: "  rm -rf /tmp/x  " })).toBe("rm -rf /tmp/x");
-    expect(describeToolCall("bash", { cmd: "echo hi" })).toBe("echo hi");
-  });
-
-  it("falls back to a file path", () => {
-    expect(describeToolCall("write", { file_path: "src/a.ts" })).toBe("src/a.ts");
-    expect(describeToolCall("edit", { path: "src/b.ts" })).toBe("src/b.ts");
-  });
-
-  it("falls back to JSON, then the tool name", () => {
-    expect(describeToolCall("custom", { foo: 1 })).toBe('{"foo":1}');
+  it("preserves every argument, including command whitespace and file contents", () => {
+    for (const input of [
+      { command: "  rm -rf /tmp/x  ", timeout: 10 },
+      { cmd: "echo hi" },
+      { file_path: "src/a.ts", content: "first\n" },
+      { path: "src/b.ts", oldText: "before", newText: "after" },
+      { foo: 1 },
+    ]) {
+      expect(JSON.parse(describeToolCall("custom", input))).toEqual(input);
+    }
     expect(describeToolCall("custom", undefined)).toBe("custom");
   });
 
-  it("truncates long detail to 500 chars", () => {
-    const long = "x".repeat(1000);
-    expect(describeToolCall("bash", { command: long }).length).toBe(500);
+  it("keeps commands sharing a long prefix and writes to the same path distinct", () => {
+    const prefix = "x".repeat(1000);
+    expect(describeToolCall("bash", { command: `${prefix}; echo safe` })).not.toBe(
+      describeToolCall("bash", { command: `${prefix}; echo different` }),
+    );
+    expect(describeToolCall("write", { path: "same", content: "first" })).not.toBe(
+      describeToolCall("write", { path: "same", content: "second" }),
+    );
+  });
+
+  it("refuses arguments that cannot be serialized instead of collapsing their identity", () => {
+    const input: Record<string, unknown> = {};
+    input.self = input;
+    expect(() => describeToolCall("custom", input)).toThrow();
   });
 });

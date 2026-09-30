@@ -78,7 +78,7 @@ finishes its current work. Both choices are available on web, desktop, and mobil
 keeps the chosen delivery mode with queued messages through reconnects and app restarts.
 
 Use `/compact` in an existing, idle conversation to summarize older context before
-continuing. Stop the session if you need to cancel compaction.
+continuing. Use **Stop** to cancel compaction.
 
 ## Project Skills and Commands
 
@@ -123,6 +123,10 @@ Settings form; leave it at `fail` unless you have a specific reason to change it
 
 ## Limitations
 
+- **Default mode only.** Pi does not support T3 Code's Plan mode.
+- **Rewind requires a recorded turn boundary.** Older turns or history changed outside
+  T3 Code may not be rewindable. T3 Code refuses the rewind rather than removing the
+  wrong native messages.
 - **Early Access.** Expect rough edges.
 - **Disabled by default.** You must enable Pi in Settings before it appears in the model
   picker.

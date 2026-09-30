@@ -3,6 +3,7 @@ import { foldUserInputActivities } from "@t3tools/client-runtime/work-log/user-i
 import * as Schema from "effect/Schema";
 import {
   requestKindFromRequestType,
+  resolvePendingUserInputCustomAnswer,
   type PendingApproval,
 } from "@t3tools/client-runtime/pending-requests";
 import { UserInputAttachmentAnswerPayload, isToolLifecycleItemType } from "@t3tools/contracts";
@@ -283,14 +284,6 @@ function isUserInputActivityGroup(entry: ThreadFeedActivityGroup): boolean {
   return entry.activities.some((activity) => activity.workEntry.questionAnswer !== undefined);
 }
 
-function normalizeDraftAnswer(value: string | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function resolvePendingUserInputOptionValue(
   question: UserInputQuestion,
   value: string,
@@ -328,9 +321,8 @@ function resolvePendingUserInputAnswer(
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | ReadonlyArray<string> | null {
   if (draft?.attachmentsBlocked) return null;
-  const customAnswer =
-    question.allowCustomAnswer === false ? null : normalizeDraftAnswer(draft?.customAnswer);
-  if (customAnswer) {
+  const customAnswer = resolvePendingUserInputCustomAnswer(question, draft?.customAnswer);
+  if (customAnswer !== null) {
     return customAnswer;
   }
 
@@ -2340,7 +2332,7 @@ export function isPendingUserInputOptionSelected(
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
 ): boolean {
-  if (question.allowCustomAnswer !== false && normalizeDraftAnswer(draft?.customAnswer)) {
+  if (resolvePendingUserInputCustomAnswer(question, draft?.customAnswer) !== null) {
     return false;
   }
 

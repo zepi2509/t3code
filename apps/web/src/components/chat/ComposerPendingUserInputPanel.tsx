@@ -1,4 +1,5 @@
 import { type ApprovalRequestId } from "@t3tools/contracts";
+import { canCancelPendingUserInputQuestion } from "@t3tools/client-runtime/pending-requests";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { type PendingUserInput } from "../../session-logic";
 import {
@@ -7,6 +8,7 @@ import {
 } from "../../pendingUserInput";
 import { CheckIcon } from "lucide-react";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
+import { Button } from "../ui/button";
 import { cn } from "~/lib/utils";
 import { ComposerBanner } from "./ComposerBanner";
 
@@ -174,7 +176,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
     return null;
   }
 
-  const customAnswerActive = progress.customAnswer.trim().length > 0;
+  const customAnswerActive = progress.usingCustomAnswer;
 
   return (
     <Collapsible
@@ -293,14 +295,19 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                 );
               })}
             </div>
-            <button
-              type="button"
-              className="mt-2 text-xs text-muted-foreground hover:text-foreground"
-              disabled={isResponding}
-              onClick={() => onCancel(activeQuestion.id)}
-            >
-              Cancel
-            </button>
+            {canCancelPendingUserInputQuestion(activeQuestion) ? (
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={isResponding}
+                  onClick={() => onCancel(activeQuestion.id)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : null}
           </ComposerBanner.Body>
         </ComposerBanner.Scroll>
       </CollapsiblePanel>
