@@ -292,7 +292,6 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
       ...discovered.slashCommands.filter((command) => command.name !== "compact"),
     ],
     skills: discovered.skills,
-    supportsManualCompaction: true,
     probe: {
       installed: true,
       version: parsedVersion,
