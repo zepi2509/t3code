@@ -5,7 +5,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeTest from "node:test";
 
-import { createQueue, createReceiver } from "./server.mjs";
+import { createQueue, createReceiver, jobId, parseNotification } from "./server.mjs";
 
 const secret = "an-isolated-32-byte-test-secret-for-webhooks";
 const notification = {
@@ -75,6 +75,75 @@ NodeTest.test("signed result download waits for a ready bundle", async (t) => {
     409,
   );
 });
+
+NodeTest.test(
+  "signed repairs are bounded, idempotent and isolated from rebase results",
+  async (t) => {
+    const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "sync-repair-"));
+    t.after(() => NodeFS.rmSync(directory, { recursive: true, force: true }));
+    const invoked = [];
+    const queue = createQueue(directory, async (request) => {
+      invoked.push(jobId(request));
+      NodeFS.writeFileSync(NodePath.join(directory, `${jobId(request)}.bundle`), "repaired");
+      return 0;
+    });
+    const server = createReceiver(secret, queue.enqueue, directory);
+    server.listen(0, "127.0.0.1");
+    await new Promise((resolve) => server.once("listening", resolve));
+    t.after(() => server.close());
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const send = async (payload, signed = true) => {
+      const body = JSON.stringify(payload);
+      return fetch(`${origin}/sync-failed`, {
+        method: "POST",
+        body,
+        headers: signed
+          ? {
+              "X-Sync-Signature": `sha256=${NodeCrypto.createHmac("sha256", secret).update(body).digest("hex")}`,
+            }
+          : {},
+      });
+    };
+    const repair = {
+      ...notification,
+      run_attempt: 1,
+      attempt: 1,
+      candidate: "c".repeat(40),
+      bundle: Buffer.from("# v2 git bundle\nfixture").toString("base64"),
+      log: "Nix build failed: native Vite+ binding missing",
+    };
+    NodeAssert.equal((await send(repair, false)).status, 401);
+    for (const invalid of [
+      { attempt: 3 },
+      { run_attempt: 0 },
+      { candidate: "../../secrets" },
+      { bundle: "not-base64" },
+      { bundle: Buffer.from("not a bundle").toString("base64") },
+      { log: "" },
+      { log: "x".repeat(65_537) },
+    ])
+      NodeAssert.equal((await send({ ...repair, ...invalid })).status, 400);
+    NodeAssert.equal((await send({ ...notification, run_attempt: 1, attempt: 0 })).status, 202);
+    NodeAssert.equal((await send(repair)).status, 202);
+    NodeAssert.equal((await send(repair)).status, 202);
+    NodeAssert.equal((await send({ ...repair, candidate: "d".repeat(40) })).status, 409);
+    NodeAssert.equal((await send({ ...repair, attempt: 2 })).status, 202);
+    NodeAssert.equal((await send({ ...repair, run_attempt: 2 })).status, 202);
+    NodeAssert.deepEqual(invoked, ["123-1-0", "123-1-1", "123-1-2", "123-2-1"]);
+    const path = "/result/123-1-1";
+    const result = await fetch(`${origin}${path}`, {
+      headers: {
+        "X-Sync-Signature": `sha256=${NodeCrypto.createHmac("sha256", secret).update(`GET ${path}`).digest("hex")}`,
+      },
+    });
+    NodeAssert.equal(result.status, 200);
+    NodeAssert.equal(await result.text(), "repaired");
+    NodeAssert.equal(
+      parseNotification(Buffer.from(JSON.stringify(repair))).candidate,
+      repair.candidate,
+    );
+  },
+);
 
 NodeTest.test("a queued delivery survives a receiver restart", async (t) => {
   const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "sync-webhook-"));
