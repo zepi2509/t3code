@@ -7,6 +7,14 @@ import * as NodeURL from "node:url";
 
 const SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = "zepi2509/t3code";
+const JOB_ID = /^[1-9][0-9]*(?:-[1-9][0-9]*-[0-2])?$/;
+const MAX_BODY = 24 * 1024 * 1024;
+
+export function jobId(request) {
+  return request.run_attempt === undefined
+    ? String(request.run_id)
+    : `${request.run_id}-${request.run_attempt}-${request.attempt}`;
+}
 
 export function verifySignature(body, signature, secret) {
   if (typeof signature !== "string" || !/^sha256=[0-9a-f]{64}$/.test(signature)) return false;
@@ -26,7 +34,48 @@ export function parseNotification(body) {
   ) {
     throw new Error("Invalid sync notification");
   }
-  return { run_id: value.run_id, base: value.base, upstream: value.upstream };
+  const request = { run_id: value.run_id, base: value.base, upstream: value.upstream };
+  if (value.run_attempt !== undefined) {
+    if (
+      !Number.isSafeInteger(value.run_attempt) ||
+      value.run_attempt < 1 ||
+      !Number.isInteger(value.attempt) ||
+      value.attempt < 0 ||
+      value.attempt > 2
+    )
+      throw new Error("Invalid sync attempt");
+    Object.assign(request, { run_attempt: value.run_attempt, attempt: value.attempt });
+  } else if (value.attempt !== undefined || value.candidate !== undefined) {
+    throw new Error("Repair requires a workflow attempt");
+  }
+  if (value.attempt > 0) {
+    if (
+      !SHA.test(value.candidate) ||
+      typeof value.bundle !== "string" ||
+      value.bundle.length > 22_369_624 ||
+      value.bundle.length % 4 !== 0 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(value.bundle) ||
+      typeof value.log !== "string" ||
+      !value.log.trim() ||
+      Buffer.byteLength(value.log) > 65_536
+    )
+      throw new Error("Invalid repair input");
+    const bundle = Buffer.from(value.bundle, "base64");
+    if (
+      bundle.length > 16 * 1024 * 1024 ||
+      !/^# v[23] git bundle\n/.test(bundle.subarray(0, 16).toString())
+    ) {
+      throw new Error("Invalid Git bundle");
+    }
+    Object.assign(request, { candidate: value.candidate, bundle: value.bundle, log: value.log });
+  } else if (
+    value.candidate !== undefined ||
+    value.bundle !== undefined ||
+    value.log !== undefined
+  ) {
+    throw new Error("Unexpected repair input");
+  }
+  return request;
 }
 
 export function createReceiver(secret, enqueue, directory = "/data/jobs") {
@@ -35,7 +84,11 @@ export function createReceiver(secret, enqueue, directory = "/data/jobs") {
       response.writeHead(204).end();
       return;
     }
-    if (request.method === "GET" && /^\/result\/[1-9][0-9]*$/.test(request.url ?? "")) {
+    if (
+      request.method === "GET" &&
+      JOB_ID.test((request.url ?? "").replace(/^\/result\//, "")) &&
+      request.url.startsWith("/result/")
+    ) {
       if (
         !verifySignature(
           Buffer.from(`GET ${request.url}`),
@@ -48,7 +101,7 @@ export function createReceiver(secret, enqueue, directory = "/data/jobs") {
       }
       const id = request.url.slice("/result/".length);
       if (
-        !Number.isSafeInteger(Number(id)) ||
+        !id.split("-").every((part) => Number.isSafeInteger(Number(part))) ||
         !NodeFS.existsSync(NodePath.join(directory, `${id}.json`))
       ) {
         response.writeHead(404).end();
@@ -93,7 +146,7 @@ export function createReceiver(secret, enqueue, directory = "/data/jobs") {
       let size = 0;
       for await (const chunk of request) {
         size += chunk.length;
-        if (size > 16_384) {
+        if (size > MAX_BODY) {
           response.writeHead(413).end();
           return;
         }
@@ -111,11 +164,15 @@ export function createReceiver(secret, enqueue, directory = "/data/jobs") {
         response.writeHead(400).end();
         return;
       }
+      if (!notification.candidate && body.length > 16_384) {
+        response.writeHead(413).end();
+        return;
+      }
       enqueue(notification);
       response.writeHead(202).end();
     })().catch((error) => {
       console.error("Webhook delivery failed:", error);
-      if (!response.headersSent) response.writeHead(500).end();
+      if (!response.headersSent) response.writeHead(error.statusCode ?? 500).end();
     });
   });
 }
@@ -139,6 +196,7 @@ export function createQueue(directory, runJob) {
         if (NodeFS.existsSync(done)) continue;
         let outcome = "already-attempted";
         if (
+          request.candidate ||
           !NodeFS.existsSync(marker) ||
           Date.now() - NodeFS.statSync(marker).mtimeMs > 45 * 60_000
         ) {
@@ -161,7 +219,10 @@ export function createQueue(directory, runJob) {
   }
   return {
     enqueue(request) {
-      const id = String(request.run_id);
+      request = parseNotification(
+        Buffer.from(JSON.stringify({ ...request, repository: REPOSITORY })),
+      );
+      const id = jobId(request);
       try {
         NodeFS.writeFileSync(
           NodePath.join(directory, `${id}.json`),
@@ -172,7 +233,17 @@ export function createQueue(directory, runJob) {
           },
         );
       } catch (error) {
-        if (error.code === "EEXIST") return false;
+        if (error.code === "EEXIST") {
+          const existing = parseNotification(
+            NodeFS.readFileSync(NodePath.join(directory, `${id}.json`)),
+          );
+          if (JSON.stringify(existing) !== JSON.stringify(request)) {
+            throw Object.assign(new Error("Sync job already exists with different inputs"), {
+              statusCode: 409,
+            });
+          }
+          return false;
+        }
         throw error;
       }
       pending.add(id);
@@ -182,7 +253,8 @@ export function createQueue(directory, runJob) {
     resume() {
       for (const file of NodeFS.readdirSync(directory)) {
         if (
-          /^[1-9][0-9]*\.json$/.test(file) &&
+          file.endsWith(".json") &&
+          JOB_ID.test(file.slice(0, -5)) &&
           !NodeFS.existsSync(NodePath.join(directory, file.replace(/\.json$/, ".done")))
         ) {
           pending.add(file.slice(0, -5));
@@ -195,6 +267,13 @@ export function createQueue(directory, runJob) {
 
 function runJob(request, log) {
   return new Promise((resolve, reject) => {
+    const id = jobId(request);
+    if (request.candidate) {
+      NodeFS.writeFileSync(`/data/jobs/${id}.input.bundle`, Buffer.from(request.bundle, "base64"), {
+        mode: 0o600,
+      });
+      NodeFS.writeFileSync(`/data/jobs/${id}.failure.log`, request.log, { mode: 0o600 });
+    }
     const fd = NodeFS.openSync(log, "a", 0o600);
     const child = NodeChildProcess.spawn(
       "timeout",
@@ -204,9 +283,10 @@ function runJob(request, log) {
         "30m",
         "bash",
         "/app/reconcile.sh",
-        String(request.run_id),
+        id,
         request.base,
         request.upstream,
+        request.candidate ?? "",
       ],
       {
         stdio: ["ignore", fd, fd],
