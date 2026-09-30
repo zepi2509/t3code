@@ -9,7 +9,10 @@ import {
 } from "@t3tools/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { usageLimitsBannerItem } from "./chat/ComposerUsageLimits";
-import { derivePendingRequests } from "@t3tools/client-runtime/pending-requests";
+import {
+  buildPendingUserInputCancellation,
+  derivePendingRequests,
+} from "@t3tools/client-runtime/pending-requests";
 import {
   isCompactCommandMessage,
   isContextCompacting,
@@ -8920,10 +8923,14 @@ export default function ChatView(props: ChatViewProps) {
 
   const onCancelActivePendingUserInput = useCallback(
     (questionId: string) => {
-      if (!activePendingUserInput) return;
-      void onRespondToUserInput(activePendingUserInput.requestId, { [questionId]: null });
+      if (!activePendingUserInput || activePendingIsResponding) return;
+      const answers = buildPendingUserInputCancellation(
+        activePendingUserInput.questions,
+        questionId,
+      );
+      if (answers) void onRespondToUserInput(activePendingUserInput.requestId, answers);
     },
-    [activePendingUserInput, onRespondToUserInput],
+    [activePendingUserInput, activePendingIsResponding, onRespondToUserInput],
   );
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {

@@ -1,4 +1,8 @@
 import type { UserInputQuestion } from "@t3tools/contracts";
+import {
+  pendingUserInputCustomAnswerText,
+  resolvePendingUserInputCustomAnswer,
+} from "@t3tools/client-runtime/pending-requests";
 
 export interface PendingUserInputDraftAnswer {
   selectedOptionValues?: string[];
@@ -21,15 +25,6 @@ export interface PendingUserInputProgress {
   canAdvance: boolean;
 }
 
-function normalizeDraftAnswer(value: string | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function normalizeSelectedOptionValues(value: string[] | undefined): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -44,11 +39,8 @@ export function resolvePendingUserInputAnswer(
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
   if (draft?.attachmentsBlocked) return null;
-  const customAnswer =
-    question.allowCustomAnswer === false
-      ? null
-      : normalizeDraftAnswer(draft?.customAnswer ?? question.prefill);
-  if (customAnswer) {
+  const customAnswer = resolvePendingUserInputCustomAnswer(question, draft?.customAnswer);
+  if (customAnswer !== null) {
     return customAnswer;
   }
 
@@ -171,10 +163,9 @@ export function derivePendingUserInputProgress(
   const resolvedAnswer = activeQuestion
     ? resolvePendingUserInputAnswer(activeQuestion, activeDraft)
     : null;
-  const customAnswer =
-    activeQuestion?.allowCustomAnswer === false
-      ? ""
-      : (activeDraft?.customAnswer ?? activeQuestion?.prefill ?? "");
+  const customAnswer = activeQuestion
+    ? pendingUserInputCustomAnswerText(activeQuestion, activeDraft?.customAnswer)
+    : "";
   const answeredQuestionCount = countAnsweredPendingUserInputQuestions(questions, draftAnswers);
   const isLastQuestion =
     questions.length === 0 ? true : normalizedQuestionIndex >= questions.length - 1;
@@ -186,7 +177,9 @@ export function derivePendingUserInputProgress(
     selectedOptionValues: normalizeSelectedOptionValues(activeDraft?.selectedOptionValues),
     customAnswer,
     resolvedAnswer,
-    usingCustomAnswer: customAnswer.trim().length > 0,
+    usingCustomAnswer:
+      activeQuestion !== null &&
+      resolvePendingUserInputCustomAnswer(activeQuestion, activeDraft?.customAnswer) !== null,
     answeredQuestionCount,
     isLastQuestion,
     isComplete: buildPendingUserInputAnswers(questions, draftAnswers) !== null,

@@ -1,4 +1,7 @@
-import { derivePendingRequests } from "@t3tools/client-runtime/pending-requests";
+import {
+  derivePendingRequests,
+  pendingUserInputCustomAnswerText,
+} from "@t3tools/client-runtime/pending-requests";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
@@ -77,6 +80,43 @@ const nativeQuestion = {
 } as const;
 
 describe("pending user input answers", () => {
+  it.each(["  line 1\n\tline 2\n  ", "\n\t  ", ""])(
+    "loads editor prefill and submits edits verbatim: %j",
+    (text) => {
+      const question = {
+        ...singleSelectQuestion,
+        options: [],
+        inputKind: "editor" as const,
+        prefill: text,
+        multiline: true,
+      };
+      expect(pendingUserInputCustomAnswerText(question, undefined)).toBe(text);
+      expect(buildPendingUserInputAnswers([question], {})).toEqual({ runtime: text });
+      const edited = setPendingUserInputCustomAnswer(question, undefined, `\n${text}\t`);
+      expect(buildPendingUserInputAnswers([question], { runtime: edited })).toEqual({
+        runtime: `\n${text}\t`,
+      });
+      const cleared = setPendingUserInputCustomAnswer(question, edited, "");
+      expect(pendingUserInputCustomAnswerText(question, cleared.customAnswer)).toBe("");
+      expect(buildPendingUserInputAnswers([question], { runtime: cleared })).toEqual({
+        runtime: "",
+      });
+    },
+  );
+
+  it("still requires ordinary answers and respects choice-only validation", () => {
+    for (const customAnswer of ["", "\n\t  "]) {
+      expect(
+        buildPendingUserInputAnswers([singleSelectQuestion], { runtime: { customAnswer } }),
+      ).toBeNull();
+    }
+    expect(
+      buildPendingUserInputAnswers([{ ...nativeQuestion, inputKind: "editor" }], {
+        choice: { customAnswer: "" },
+      }),
+    ).toBeNull();
+  });
+
   it("accepts free-text answers to async questions without options", () => {
     const question = {
       id: "0",

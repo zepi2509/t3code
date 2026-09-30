@@ -1,6 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - Tests use Node's glob matcher to verify electron-builder exclusions.
 import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
+import { extractFile, statFile } from "@electron/asar";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -110,6 +111,7 @@ const makeLinuxCliArchiveFixture = Effect.fn("test.makeLinuxCliArchiveFixture")(
   const members = [
     `${input.stem}/t3`,
     `${input.stem}/client/index.html`,
+    `${input.stem}/assets/pi/t3-approvals.ts`,
     `${input.stem}/node_modules/node-pty/package.json`,
     `${input.stem}/node_modules/node-pty/build/Release/pty.node`,
     ...(input.extraMembers ?? []),
@@ -174,7 +176,12 @@ const WINDOWS_PAYLOAD_FIXTURE_VERSION = "1.2.3";
 const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(function* (input: {
   readonly copyUnpackedNatives: boolean;
   readonly serverEntrySource?: string;
-  readonly wslRuntime?: "valid" | "loose-server-tree" | "missing-pty" | "bad-digest";
+  readonly wslRuntime?:
+    | "valid"
+    | "loose-server-tree"
+    | "missing-pty"
+    | "missing-pi-extension"
+    | "bad-digest";
   readonly targetArch?: "x64" | "arm64";
   readonly ptyPrebuildArch?: "x64" | "arm64";
 }) {
@@ -228,9 +235,14 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
         : yield* makeLinuxCliArchiveFixture({
             root: path.join(tempDir, "wsl-runtime"),
             stem,
-            ...(input.wslRuntime === "missing-pty" || input.ptyPrebuildArch !== undefined
-              ? { omitMembers: [`${stem}/node_modules/node-pty/build/Release/pty.node`] }
-              : {}),
+            omitMembers: [
+              ...(input.wslRuntime === "missing-pty" || input.ptyPrebuildArch !== undefined
+                ? [`${stem}/node_modules/node-pty/build/Release/pty.node`]
+                : []),
+              ...(input.wslRuntime === "missing-pi-extension"
+                ? [`${stem}/assets/pi/t3-approvals.ts`]
+                : []),
+            ],
             ...(input.ptyPrebuildArch !== undefined
               ? {
                   extraMembers: [
@@ -843,6 +855,28 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
+  it.effect("keeps the Pi approval extension readable inside the Windows server ASAR", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-pi-asar-test-" });
+        const sourceDir = path.join(tempDir, "server");
+        const extension = "apps/server/dist/assets/pi/t3-approvals.ts";
+        const source = "export default function approvals() {}\n";
+        yield* fs.makeDirectory(path.dirname(path.join(sourceDir, extension)), { recursive: true });
+        yield* fs.writeFileString(path.join(sourceDir, extension), source);
+        yield* fs.makeDirectory(path.join(sourceDir, "node_modules/native"), { recursive: true });
+        yield* fs.writeFileString(path.join(sourceDir, "node_modules/native/addon.node"), "native");
+        const asarPath = path.join(tempDir, "server.asar");
+        yield* packWindowsServerAsar({ sourceDir, asarPath, arch: "x64" });
+        assert.isNotTrue(statFile(asarPath, extension).unpacked);
+        assert.equal(extractFile(asarPath, extension).toString("utf8"), source);
+        assert.isFalse(yield* fs.exists(path.join(`${asarPath}.unpacked`, extension)));
+      }),
+    ),
+  );
+
   it.effect("stages a cached resource monitor without invoking Cargo", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -1320,6 +1354,29 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
         assert.instanceOf(error, WindowsPackagedPayloadValidationError);
         assert.equal(error.reason, "wsl-runtime-invalid");
+      }),
+    ),
+  );
+
+  it.effect("rejects an embedded archive without the Pi approval extension", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fixture = yield* makeWindowsPayloadFixture({
+          copyUnpackedNatives: true,
+          wslRuntime: "missing-pi-extension",
+        });
+        const error = yield* validateWindowsPackagedPayload({
+          stageDistDir: fixture.stageDistDir,
+          appExecutableName: fixture.appExecutableName,
+          targetArch: "x64",
+          appVersion: WINDOWS_PAYLOAD_FIXTURE_VERSION,
+          expectWslRuntime: true,
+        }).pipe(Effect.flip);
+        assert.instanceOf(error, WindowsPackagedPayloadValidationError);
+        assert.equal(error.reason, "wsl-runtime-invalid");
+        assert.deepStrictEqual(error.missingFiles, [
+          `${wslRuntimeArchiveStem(WINDOWS_PAYLOAD_FIXTURE_VERSION, "x64")}/assets/pi/t3-approvals.ts`,
+        ]);
       }),
     ),
   );

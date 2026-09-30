@@ -10,6 +10,7 @@ import {
   extractForkMessages,
   extractLastAssistantText,
   extractPiCommands,
+  extractPiSessionEntries,
   extractReasoningTextDelta,
   extractSessionFile,
   parsePiStdoutLine,
@@ -690,28 +691,58 @@ describe("piForkSucceeded", () => {
   });
 });
 
-describe("resolveForkTargetEntryId", () => {
-  const msgs = (...ids: string[]) => ids.map((entryId) => ({ entryId }));
+describe("native T3 turn boundaries", () => {
+  const entries = [
+    { id: "prior", parentId: null, type: "message", message: { role: "assistant" } },
+    { id: "prompt", parentId: "prior", type: "message", message: { role: "user" } },
+    { id: "reply", parentId: "prompt", type: "message", message: { role: "assistant" } },
+    { id: "steer", parentId: "reply", type: "message", message: { role: "user" } },
+    { id: "abandoned", parentId: "prior", type: "message", message: { role: "user" } },
+  ];
 
-  it("returns null when there is nothing to roll back", () => {
-    expect(resolveForkTargetEntryId([], 3)).toBeNull();
-    expect(resolveForkTargetEntryId(msgs("a", "b"), 0)).toBeNull();
-    expect(resolveForkTargetEntryId(msgs("a", "b"), -1)).toBeNull();
-  });
-
-  it("forks before the (len-numTurns)th user message", () => {
-    expect(resolveForkTargetEntryId(msgs("a", "b", "c", "d", "e"), 2)).toEqual({
+  it("forks before the original prompt rather than the steering message", () => {
+    expect(resolveForkTargetEntryId(entries, "steer", "prior")).toEqual({
       kind: "fork",
-      entryId: "d",
-    });
-    expect(resolveForkTargetEntryId(msgs("a", "b", "c", "d"), 1)).toEqual({
-      kind: "fork",
-      entryId: "d",
+      entryId: "prompt",
     });
   });
 
-  it("resets to an empty session when rolling back to or past the first message", () => {
-    expect(resolveForkTargetEntryId(msgs("a", "b", "c"), 3)).toEqual({ kind: "reset" });
-    expect(resolveForkTargetEntryId(msgs("a", "b", "c"), 5)).toEqual({ kind: "reset" });
+  it("uses entry ancestry, including image-only user messages, not text or array order", () => {
+    expect(resolveForkTargetEntryId(entries.toReversed(), "prompt", "prior")).toEqual({
+      kind: "fork",
+      entryId: "prompt",
+    });
+    expect(resolveForkTargetEntryId(entries, "abandoned", "prior")).toEqual({
+      kind: "fork",
+      entryId: "abandoned",
+    });
+  });
+
+  it("refuses missing boundaries, broken ancestry and cycles", () => {
+    expect(resolveForkTargetEntryId(entries, "steer", "missing")).toBeNull();
+    expect(resolveForkTargetEntryId(entries, "prior", "prior")).toBeNull();
+    expect(resolveForkTargetEntryId([], "steer", "prior")).toBeNull();
+    expect(
+      resolveForkTargetEntryId([{ id: "loop", parentId: "loop", type: "custom" }], "loop", "prior"),
+    ).toBeNull();
+    expect(resolveForkTargetEntryId(entries, "steer", null)).toEqual({ kind: "reset" });
+  });
+
+  it("validates get_entries responses before recording a boundary", () => {
+    const response = (data: unknown) =>
+      asResponse({ type: "response", command: "get_entries", success: true, data });
+    expect(extractPiSessionEntries(response({ entries, leafId: "steer" }))).toEqual({
+      entries,
+      leafId: "steer",
+    });
+    expect(extractPiSessionEntries(response({ entries: [], leafId: null }))).toEqual({
+      entries: [],
+      leafId: null,
+    });
+    expect(
+      extractPiSessionEntries(response({ entries: "invalid", leafId: "steer" })),
+    ).toBeUndefined();
+    expect(extractPiSessionEntries(response({ entries }))).toBeUndefined();
+    expect(extractPiSessionEntries(undefined)).toBeUndefined();
   });
 });
