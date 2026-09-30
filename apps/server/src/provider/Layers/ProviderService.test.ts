@@ -1253,6 +1253,170 @@ antigravityInstanceRouting.layer("ProviderServiceLive instance-owned conversatio
   );
 });
 
+const piRollbackAdapter = makeFakeCodexAdapter(ProviderDriverKind.make("pi"));
+const piRollback = makeProviderServiceLayer({
+  registry: makeStaticInstanceRegistry([
+    [ProviderInstanceId.make("pi"), piRollbackAdapter.adapter],
+  ]),
+});
+piRollback.layer("ProviderServiceLive Pi rewind recovery", (it) => {
+  it.effect("persists Pi background boundaries and invalidates error-exit recovery", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const directory = yield* ProviderSessionDirectory.ProviderSessionDirectory;
+      const threadId = asThreadId("pi-background-resume-state");
+      yield* provider.startSession(threadId, {
+        threadId,
+        providerInstanceId: ProviderInstanceId.make("pi"),
+        cwd: fixtureCwd("pi-background-resume"),
+        runtimeMode: "full-access",
+        resumeCursor: { sessionFile: "/tmp/pi-background.json", turnStartEntryIds: [null] },
+      });
+      const cursor = {
+        sessionFile: "/tmp/pi-background.json",
+        turnStartEntryIds: [null, "background-start"],
+        lastEntryId: "background-end",
+      };
+      piRollbackAdapter.updateSession(threadId, (session) => ({
+        ...session,
+        resumeCursor: cursor,
+      }));
+      const observed = yield* provider.streamEvents.pipe(
+        Stream.filter((event) => event.eventId === "pi-background-completed"),
+        Stream.take(1),
+        Stream.runDrain,
+        Effect.forkChild,
+      );
+      yield* Effect.yieldNow;
+      piRollbackAdapter.emit({
+        type: "turn.completed",
+        eventId: asEventId("pi-background-completed"),
+        provider: ProviderDriverKind.make("pi"),
+        createdAt: "2026-01-01T00:00:00.000Z",
+        threadId,
+        turnId: asTurnId("background-turn"),
+        payload: { state: "completed" },
+      });
+      yield* Fiber.join(observed);
+      const saved = yield* directory.getBinding(threadId);
+      assert(Option.isSome(saved));
+      assert.deepEqual(saved.value.resumeCursor, cursor);
+      yield* piRollbackAdapter.stopSession(threadId);
+      const exited = yield* provider.streamEvents.pipe(
+        Stream.filter((event) => event.eventId === "pi-background-exited"),
+        Stream.take(1),
+        Stream.runDrain,
+        Effect.forkChild,
+      );
+      yield* Effect.yieldNow;
+      piRollbackAdapter.emit({
+        type: "session.exited",
+        eventId: asEventId("pi-background-exited"),
+        provider: ProviderDriverKind.make("pi"),
+        createdAt: "2026-01-01T00:00:01.000Z",
+        threadId,
+        payload: { exitKind: "error", reason: "Native state is unknown" },
+      });
+      yield* Fiber.join(exited);
+      const stopped = yield* directory.getBinding(threadId);
+      assert(Option.isSome(stopped));
+      assert.equal(stopped.value.resumeCursor, null);
+      assert.equal(stopped.value.status, "stopped");
+    }),
+  );
+
+  it.effect(
+    "persists failed-turn boundaries and prevents stopped submissions from resuming stale history",
+    () =>
+      Effect.gen(function* () {
+        const provider = yield* ProviderService.ProviderService;
+        const directory = yield* ProviderSessionDirectory.ProviderSessionDirectory;
+        for (const stopped of [false, true]) {
+          const threadId = asThreadId(`pi-submission-recovery-${stopped}`);
+          const cursor = {
+            sessionFile: `/tmp/pi-submit-${stopped}.json`,
+            turnStartEntryIds: [null, "failed-turn"],
+          };
+          yield* provider.startSession(threadId, {
+            threadId,
+            providerInstanceId: ProviderInstanceId.make("pi"),
+            cwd: fixtureCwd("pi-submit-recovery"),
+            runtimeMode: "full-access",
+            resumeCursor: { sessionFile: cursor.sessionFile, turnStartEntryIds: [null] },
+          });
+          piRollbackAdapter.sendTurn.mockImplementationOnce(() =>
+            Effect.gen(function* () {
+              if (stopped) yield* piRollbackAdapter.stopSession(threadId);
+              else
+                piRollbackAdapter.updateSession(threadId, (session) => ({
+                  ...session,
+                  resumeCursor: cursor,
+                }));
+              return yield* new ProviderAdapterRequestError({
+                provider: ProviderDriverKind.make("pi"),
+                method: "prompt",
+                detail: "rejected submission",
+              });
+            }),
+          );
+          yield* Effect.flip(provider.sendTurn({ threadId, input: "failed" }));
+          const binding = yield* directory.getBinding(threadId);
+          assert(Option.isSome(binding));
+          assert.deepEqual(binding.value.resumeCursor, stopped ? null : cursor);
+          if (stopped) assert.equal(binding.value.status, "stopped");
+        }
+      }),
+  );
+
+  it.effect("invalidates indeterminate native resume state but preserves a rejected fork", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const directory = yield* ProviderSessionDirectory.ProviderSessionDirectory;
+      for (const method of ["fork", "rollbackThread"]) {
+        const threadId = asThreadId(`pi-rewind-${method}`);
+        const cursor = { sessionFile: `/tmp/pi-${method}-old.json` };
+        yield* provider.startSession(threadId, {
+          threadId,
+          providerInstanceId: ProviderInstanceId.make("pi"),
+          cwd: fixtureCwd("pi-rewind"),
+          runtimeMode: "full-access",
+          resumeCursor: cursor,
+        });
+        piRollbackAdapter.rollbackThread.mockImplementationOnce(() =>
+          (method === "rollbackThread"
+            ? piRollbackAdapter.stopSession(threadId)
+            : Effect.void
+          ).pipe(
+            Effect.andThen(
+              Effect.fail(
+                new ProviderAdapterRequestError({
+                  provider: ProviderDriverKind.make("pi"),
+                  method,
+                  detail: "unknown native branch",
+                }),
+              ),
+            ),
+          ),
+        );
+        yield* Effect.flip(provider.rollbackConversation({ threadId, numTurns: 1 }));
+        const binding = yield* directory.getBinding(threadId);
+        assert(Option.isSome(binding));
+        assert.deepEqual(binding.value.resumeCursor, method === "rollbackThread" ? null : cursor);
+        if (method === "rollbackThread") {
+          assert.equal(binding.value.status, "stopped");
+          yield* provider.startSession(threadId, {
+            threadId,
+            providerInstanceId: ProviderInstanceId.make("pi"),
+            cwd: fixtureCwd("pi-rewind"),
+            runtimeMode: "full-access",
+          });
+          assert.isNull(piRollbackAdapter.startSession.mock.calls.at(-1)?.[0].resumeCursor);
+        }
+      }
+    }),
+  );
+});
+
 const unsupportedRollback = makeProviderServiceLayer({ supportsConversationRollback: false });
 unsupportedRollback.layer("ProviderServiceLive unsupported rewind", (it) => {
   it.effect("rejects rewind without starting or changing the provider conversation", () =>
