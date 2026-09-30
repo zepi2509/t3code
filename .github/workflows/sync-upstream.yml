@@ -14,6 +14,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     outputs:
       ref: ${{ steps.publish.outputs.ref }}
       build_release: ${{ steps.release.outputs.build_release }}
@@ -25,14 +26,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Test sync safeguards
-        run: node --test .github/scripts/sync-upstream.test.mjs infra/sync-webhook/server.test.mjs
+        run: node --test .github/scripts/sync-upstream.test.mjs .github/scripts/validate-upstream-sync.test.mjs infra/sync-webhook/server.test.mjs
       - id: sync
         name: Rebase onto upstream main
         continue-on-error: true
         run: |
           base_ref="$(git rev-parse HEAD)"
           echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
-          cp .github/scripts/recover-upstream-with-pi.sh "$RUNNER_TEMP/recover-upstream-with-pi.sh"
+          cp .github/scripts/{recover-upstream-with-pi,validate-upstream-sync}.sh "$RUNNER_TEMP/"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git remote add upstream https://github.com/pingdotgg/t3code.git
@@ -48,59 +49,21 @@ jobs:
           SYNC_WEBHOOK_SECRET: ${{ secrets.SYNC_WEBHOOK_SECRET }}
         run: bash "$RUNNER_TEMP/recover-upstream-with-pi.sh"
 
-      - id: finalize
-        name: Preserve fork workflow and detect dependency changes
-        run: |
-          base_ref="${{ steps.sync.outputs.base_ref }}"
-          if ! git diff --quiet "$base_ref" -- .github/workflows; then
-            git restore --source="$base_ref" --staged --worktree .github/workflows
-            git commit --amend --no-edit
-          fi
-          if git diff --quiet "$base_ref" -- package.json ':(glob)**/package.json' pnpm-lock.yaml pnpm-workspace.yaml; then
-            echo "pnpm_changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "pnpm_changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Setup Vite+
-        if: steps.finalize.outputs.pnpm_changed == 'true' || steps.recover.outcome == 'success'
         uses: voidzero-dev/setup-vp@v1
         with:
           node-version-file: package.json
           run-install: false
 
-      - name: Regenerate and verify pnpm lockfile
-        if: steps.finalize.outputs.pnpm_changed == 'true'
-        run: |
-          vp install --lockfile-only --no-frozen-lockfile --ignore-scripts
-          vp install --lockfile-only --frozen-lockfile --ignore-scripts
-
       - name: Install Nix
-        if: steps.finalize.outputs.pnpm_changed == 'true'
         uses: DeterminateSystems/nix-installer-action@v21
 
-      - name: Refresh dependency hashes and verify Nix builds
-        if: steps.finalize.outputs.pnpm_changed == 'true'
-        run: |
-          node .github/scripts/update-nix-hashes.mjs
-          nix build .#desktop .#server --no-link --show-trace
-          git add pnpm-lock.yaml flake.nix
-          if ! git diff --cached --quiet; then
-            git commit -m "fix(build): refresh generated dependencies after upstream sync"
-          fi
-
-      - name: Validate Pi recovery before publishing
-        if: steps.recover.outcome == 'success'
-        run: |
-          vp install --frozen-lockfile
-          vp run --filter @t3tools/contracts typecheck
-          vp run --filter t3 typecheck
-          vp run --filter @t3tools/web typecheck
-          vp run --filter @t3tools/contracts test
-          vp run --filter t3 test
-          vp run --filter @t3tools/web test
-          vp run --filter @t3tools/web build
-          test -z "$(git status --porcelain)"
+      - name: Validate and repair upstream candidate before publishing
+        timeout-minutes: 180
+        env:
+          SYNC_WEBHOOK_URL: ${{ secrets.SYNC_WEBHOOK_URL }}
+          SYNC_WEBHOOK_SECRET: ${{ secrets.SYNC_WEBHOOK_SECRET }}
+        run: bash "$RUNNER_TEMP/validate-upstream-sync.sh"
 
       - id: publish
         name: Push synced main
