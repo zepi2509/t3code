@@ -18,6 +18,7 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
@@ -584,15 +585,45 @@ export function piForkSucceeded(response: RpcResponse | undefined): boolean {
   return piResponseData(response)?.["cancelled"] !== true;
 }
 
-// linear 1-user-message-per-turn mapping; mid-turn steers can under-drop (deferred)
+const PiSessionEntries = Schema.Struct({
+  leafId: Schema.NullOr(Schema.String),
+  entries: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      parentId: Schema.NullOr(Schema.String),
+      type: Schema.String,
+      message: Schema.optional(Schema.Struct({ role: Schema.String })),
+    }),
+  ),
+});
+const decodePiSessionEntries = Schema.decodeUnknownOption(PiSessionEntries);
+
+export function extractPiSessionEntries(response: RpcResponse | undefined) {
+  if (!piResponseSucceeded(response, "get_entries")) return undefined;
+  return Option.getOrUndefined(decodePiSessionEntries(piResponseData(response)));
+}
+
+// Follow the active branch back to the leaf recorded before the T3 turn.
+// Native steers, image-only prompts and abandoned branches are not T3 turns.
 export function resolveForkTargetEntryId(
-  userMessages: ReadonlyArray<{ readonly entryId: string }>,
-  numTurns: number,
+  entries: typeof PiSessionEntries.Type.entries,
+  leafId: string | null,
+  beforeEntryId: string | null,
 ): { readonly kind: "fork"; readonly entryId: string } | { readonly kind: "reset" } | null {
-  if (numTurns <= 0 || userMessages.length === 0) return null;
-  const targetIndex = userMessages.length - numTurns;
-  if (targetIndex <= 0) return { kind: "reset" };
-  return { kind: "fork", entryId: userMessages[targetIndex]!.entryId };
+  if (beforeEntryId === null) return { kind: "reset" };
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const visited = new Set<string>();
+  let cursor = leafId;
+  let target: string | undefined;
+  while (cursor !== beforeEntryId) {
+    if (cursor === null || visited.has(cursor)) return null;
+    visited.add(cursor);
+    const entry = byId.get(cursor);
+    if (!entry) return null;
+    if (entry.type === "message" && entry.message?.role === "user") target = entry.id;
+    cursor = entry.parentId;
+  }
+  return target === undefined ? null : { kind: "fork", entryId: target };
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +638,7 @@ export interface PiRpcTransport {
     command: RpcCommand,
     id: string,
     timeoutMs: number,
+    waitForInput?: () => boolean,
   ) => Effect.Effect<RpcResponse | undefined>;
   readonly messages: Queue.Queue<PiStdoutMessage>;
   readonly kill: Effect.Effect<void>;
@@ -712,22 +744,29 @@ export const makePiRpcTransport = (options: MakePiRpcTransportOptions) =>
       command: RpcCommand,
       id: string,
       timeoutMs: number,
+      waitForInput?: () => boolean,
     ): Effect.Effect<RpcResponse | undefined> =>
       Effect.gen(function* () {
         const deferred = yield* Deferred.make<RpcResponse>();
         pendingRequests.set(id, deferred);
         yield* writeLine({ ...command, id });
-        // resolve on response, process exit, or timeout — whichever comes first
-        const outcome = yield* Deferred.await(deferred).pipe(
-          Effect.map((response) => Option.some(response)),
+        const awaitResponse = Deferred.await(deferred).pipe(
+          Effect.asSome,
           Effect.race(Deferred.await(closed).pipe(Effect.as(Option.none<RpcResponse>()))),
-          Effect.timeoutOption(timeoutMs),
         );
+        let outcome = yield* awaitResponse.pipe(Effect.timeoutOption(timeoutMs));
+        // A human dialog is not an RPC failure. Stop/cancellation still settles
+        // its callback, and a process exit still releases this waiter.
+        if (outcome._tag === "None" && waitForInput?.()) {
+          outcome = Option.some(yield* awaitResponse);
+        }
         pendingRequests.delete(id);
         return outcome._tag === "None" ? undefined : Option.getOrUndefined(outcome.value);
       });
 
-    const kill = child.kill().pipe(Effect.ignore);
+    const kill = child
+      .kill({ killSignal: "SIGKILL" })
+      .pipe(Effect.ignore, Effect.andThen(child.exitCode), Effect.asVoid, Effect.ignore);
 
     return {
       writeCommand: (command) => writeLine(command),

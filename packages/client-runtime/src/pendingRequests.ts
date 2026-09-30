@@ -26,6 +26,38 @@ export interface PendingUserInput {
   readonly dismissible: boolean;
 }
 
+/** Only Pi extension dialogs populate inputKind and accept a null cancellation reply. */
+export function canCancelPendingUserInputQuestion(question: UserInputQuestion): boolean {
+  return question.inputKind !== undefined;
+}
+
+export function buildPendingUserInputCancellation(
+  questions: ReadonlyArray<UserInputQuestion>,
+  questionId: string,
+): Record<string, null> | null {
+  const question = questions.find((entry) => entry.id === questionId);
+  return question && canCancelPendingUserInputQuestion(question) ? { [questionId]: null } : null;
+}
+
+/** An explicit empty edit must override prefill, not restore it. */
+export function pendingUserInputCustomAnswerText(
+  question: UserInputQuestion,
+  customAnswer: string | undefined,
+): string {
+  return question.allowCustomAnswer === false ? "" : (customAnswer ?? question.prefill ?? "");
+}
+
+export function resolvePendingUserInputCustomAnswer(
+  question: UserInputQuestion,
+  customAnswer: string | undefined,
+): string | null {
+  if (question.allowCustomAnswer === false) return null;
+  const text = pendingUserInputCustomAnswerText(question, customAnswer);
+  // Editor contents are documents: whitespace and an empty document are valid answers.
+  if (question.inputKind === "editor") return text;
+  return text.trim() || null;
+}
+
 const isRequestId = Schema.is(ApprovalRequestId);
 const isProviderRequestKind = Schema.is(ProviderRequestKind);
 const isProviderApprovalOption = Schema.is(ProviderApprovalOption);
