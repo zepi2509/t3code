@@ -237,7 +237,6 @@ export const ServerProvider = Schema.Struct({
       shadowHomePath: Schema.NullOr(TrimmedNonEmptyString),
     }),
   ),
-  supportsManualCompaction: Schema.optional(Schema.Boolean),
   enabled: Schema.Boolean,
   installed: Schema.Boolean,
   version: Schema.NullOr(TrimmedNonEmptyString),
