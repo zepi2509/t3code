@@ -28,19 +28,9 @@ const DENIED_REASON = "Denied in T3 Code";
 
 function describeToolCall(toolName: string, input: Record<string, unknown> | undefined): string {
   if (!input) return toolName;
-  const command = input["command"] ?? input["cmd"];
-  if (typeof command === "string" && command.trim().length > 0) {
-    return command.trim().slice(0, 500);
-  }
-  const filePath = input["file_path"] ?? input["path"] ?? input["filePath"];
-  if (typeof filePath === "string" && filePath.trim().length > 0) {
-    return filePath.trim().slice(0, 500);
-  }
-  try {
-    return JSON.stringify(input).slice(0, 500);
-  } catch {
-    return toolName;
-  }
+  // The adapter also uses this text as the session approval identity. Never
+  // discard arguments or truncate it: different operations need different approvals.
+  return JSON.stringify(input, null, 2);
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -57,7 +47,12 @@ export default function (pi: ExtensionAPI): void {
     }
 
     const input = (event as { input?: Record<string, unknown> }).input;
-    const detail = describeToolCall(event.toolName, input);
+    let detail: string;
+    try {
+      detail = describeToolCall(event.toolName, input);
+    } catch {
+      return { block: true, reason: "Cannot describe tool arguments for approval" };
+    }
     const confirmed = ctx.hasUI
       ? await ctx.ui.confirm(`${APPROVAL_TITLE_PREFIX}Run ${event.toolName}?`, detail)
       : false;

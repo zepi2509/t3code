@@ -33,6 +33,7 @@ import type {
   ServerProvider,
   ThreadId,
   SnapShotSource,
+  UserInputQuestion,
 } from "@t3tools/contracts";
 import {
   ProviderDriverKind,
@@ -1378,6 +1379,7 @@ export interface ChatComposerProps {
     customAnswer: string;
     activeQuestion: {
       id: string;
+      inputKind?: UserInputQuestion["inputKind"];
       multiSelect?: boolean | undefined;
       allowCustomAnswer?: boolean | undefined;
       placeholder?: string | undefined;
@@ -6889,7 +6891,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 <ComposerContextActionsContext value={composerContextActions}>
                   <ComposerPromptEditor
                     editorRef={composerEditorRef}
-                    richTextEnabled={settings.composerRichTextEnabled}
+                    richTextEnabled={
+                      settings.composerRichTextEnabled &&
+                      activePendingProgress?.activeQuestion?.inputKind !== "editor"
+                    }
                     value={
                       isComposerApprovalState
                         ? ""

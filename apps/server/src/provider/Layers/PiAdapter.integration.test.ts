@@ -1,8 +1,12 @@
+import * as NodeURL from "node:url";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { HostProcessExecutablePath, HostProcessIsExecutable } from "@t3tools/shared/hostProcess";
 import { expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -33,6 +37,9 @@ import type {
 } from "./PiRpcClient.ts";
 
 const decodePiSettings = Schema.decodeSync(PiSettings);
+const encodeApprovalArguments = Schema.encodeSync(
+  Schema.fromJsonString(Schema.Struct({ command: Schema.String })),
+);
 const PI = ProviderDriverKind.make("pi");
 
 const HarnessLayer = ServerConfig.layerTest(process.cwd(), {
@@ -47,7 +54,7 @@ interface FakePiTransport {
   readonly eventsBeforeResponse: Map<string, ReadonlyArray<AgentSessionEvent>>;
   readonly pushEvent: (event: AgentSessionEvent) => Effect.Effect<void>;
   readonly pushExtensionUI: (request: RpcExtensionUIRequest) => Effect.Effect<void>;
-  readonly setResponse: (commandType: string, response: RpcResponse) => void;
+  readonly setResponse: (commandType: string, response: RpcResponse | undefined) => void;
 }
 
 const asResponse = (value: unknown): RpcResponse => value as RpcResponse;
@@ -57,7 +64,7 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
   const commands: Array<RpcCommand> = [];
   const requestTimeouts: Array<{ type: string; timeoutMs: number }> = [];
   const extensionResponses: Array<RpcExtensionUIResponse> = [];
-  const responses = new Map<string, RpcResponse>();
+  const responses = new Map<string, RpcResponse | undefined>();
   const eventsBeforeResponse = new Map<string, ReadonlyArray<AgentSessionEvent>>();
   responses.set(
     "get_state",
@@ -67,6 +74,15 @@ const makeFakePiRpcTransport = Effect.gen(function* () {
       command: "get_state",
       success: true,
       data: { sessionFile: "/tmp/pi-session.json" },
+    }),
+  );
+  responses.set(
+    "get_entries",
+    asResponse({
+      type: "response",
+      command: "get_entries",
+      success: true,
+      data: { entries: [], leafId: null },
     }),
   );
   responses.set(
@@ -179,6 +195,562 @@ const enabledSettings = (overrides: Record<string, unknown> = {}) =>
   decodePiSettings({ enabled: true, ...overrides });
 
 it.layer(HarnessLayer)("PiAdapter integration", (it) => {
+  it.effect("refreshes a changed native session before publishing turn completion", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePiRpcTransport;
+      const syncStarted = yield* Deferred.make<void>();
+      const nativeStateReady = yield* Deferred.make<RpcResponse>();
+      let changedSession = false;
+      const adapter = yield* makePiAdapter(enabledSettings(), {
+        makeTransport: () =>
+          Effect.succeed({
+            ...fake.transport,
+            request: (command, id, timeout) => {
+              if (changedSession && command.type === "get_state") {
+                return Deferred.succeed(syncStarted, undefined).pipe(
+                  Effect.andThen(Deferred.await(nativeStateReady)),
+                );
+              }
+              return fake.transport.request(command, id, timeout);
+            },
+          }),
+      });
+      const threadId = ThreadId.make("pi-native-state-before-completion");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+      const turn = yield* adapter.sendTurn({ threadId, input: "native session change" });
+      const done = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.completed",
+      );
+      changedSession = true;
+      yield* fake.pushEvent({
+        type: "agent_settled",
+        messages: [],
+        interrupted: false,
+      } as AgentSessionEvent);
+      yield* Deferred.await(syncStarted);
+      expect((yield* adapter.listSessions())[0]?.activeTurnId).toBe(turn.turnId);
+      yield* Deferred.succeed(
+        nativeStateReady,
+        asResponse({
+          type: "response",
+          command: "get_state",
+          success: true,
+          data: { sessionFile: "/tmp/pi-changed-session.json" },
+        }),
+      );
+      yield* Fiber.join(done.fiber);
+      expect((yield* adapter.listSessions())[0]?.resumeCursor).toEqual({
+        sessionFile: "/tmp/pi-changed-session.json",
+      });
+    }),
+  );
+
+  it.effect("does not overwrite native work starting during a boundary snapshot", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-snapshot-race");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+      const started = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "turn.started",
+      );
+      fake.eventsBeforeResponse.set("get_entries", [
+        { type: "agent_start" },
+        {
+          type: "entry_appended",
+          entry: { id: "background", parentId: null, type: "message", message: { role: "user" } },
+        },
+        { type: "turn_start" },
+      ] as AgentSessionEvent[]);
+      const turn = yield* adapter.sendTurn({ threadId, input: "redirect background work" });
+      yield* Fiber.join(started.fiber);
+      expect(turn.turnId).toBe(
+        (yield* Ref.get(started.store)).find((event) => event.type === "turn.started")?.turnId,
+      );
+      expect(fake.commands.at(-1)).toMatchObject({
+        type: "steer",
+        message: "redirect background work",
+      });
+      expect((yield* adapter.listSessions())[0]?.activeTurnId).toBe(turn.turnId);
+    }),
+  );
+
+  it.effect(
+    "records independent native turns and refuses continuations without a forkable boundary",
+    () =>
+      Effect.gen(function* () {
+        for (const hasUserEntry of [true, false]) {
+          const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+          const threadId = ThreadId.make(`pi-background-boundary-${hasUserEntry}`);
+          yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+          const original = yield* adapter.sendTurn({ threadId, input: "A" });
+          const firstDone = yield* collectEvents(
+            adapter,
+            threadId,
+            (event) => event.type === "turn.completed",
+          );
+          yield* fake.pushEvent({
+            type: "entry_appended",
+            entry: {
+              id: "after-A",
+              type: "message",
+              parentId: "A",
+              message: { role: "assistant" },
+            },
+          } as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "agent_settled",
+            messages: [],
+            interrupted: false,
+          } as AgentSessionEvent);
+          yield* Fiber.join(firstDone.fiber);
+          const backgroundDone = yield* collectEvents(
+            adapter,
+            threadId,
+            (event) => event.type === "turn.completed",
+          );
+          yield* fake.pushEvent({ type: "agent_start" } as AgentSessionEvent);
+          if (hasUserEntry)
+            yield* fake.pushEvent({
+              type: "entry_appended",
+              entry: {
+                id: "B",
+                parentId: "after-A",
+                type: "message",
+                message: { role: "user" },
+              },
+            } as AgentSessionEvent);
+          yield* fake.pushEvent({ type: "turn_start" } as AgentSessionEvent);
+          yield* fake.pushEvent({
+            type: "agent_settled",
+            messages: [],
+            interrupted: false,
+          } as AgentSessionEvent);
+          yield* Fiber.join(backgroundDone.fiber);
+          fake.setResponse(
+            "get_entries",
+            asResponse({
+              type: "response",
+              command: "get_entries",
+              success: true,
+              data: {
+                leafId: "B",
+                entries: [
+                  { id: "B", parentId: "after-A", type: "message", message: { role: "user" } },
+                ],
+              },
+            }),
+          );
+          fake.setResponse(
+            "fork",
+            asResponse({ type: "response", command: "fork", success: true }),
+          );
+          const result = yield* adapter.rollbackThread(threadId, 1).pipe(Effect.result);
+          if (hasUserEntry) {
+            expect(Result.isSuccess(result)).toBe(true);
+            expect(fake.commands).toContainEqual({ type: "fork", entryId: "B" });
+            expect((yield* adapter.readThread(threadId)).turns.map((turn) => turn.id)).toEqual([
+              original.turnId,
+            ]);
+          } else {
+            expect(Result.isFailure(result)).toBe(true);
+            expect(
+              fake.commands.some(
+                (command) => command.type === "fork" || command.type === "new_session",
+              ),
+            ).toBe(false);
+          }
+        }
+      }),
+  );
+
+  it.effect("stops a timed-out manual compaction before reporting failure", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-compact-timeout");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+      const compaction = adapter.compaction;
+      if (compaction?.type !== "native") throw new Error("missing compaction");
+      fake.setResponse("compact", undefined);
+      expect(Result.isFailure(yield* compaction.start(threadId).pipe(Effect.result))).toBe(true);
+      expect(yield* adapter.hasSession(threadId)).toBe(false);
+    }),
+  );
+
+  it.effect("allows human dialogs to outlast compaction and rewind acknowledgement deadlines", () =>
+    Effect.gen(function* () {
+      for (const operation of ["compact", "fork"] as const) {
+        const fake = yield* makeFakePiRpcTransport;
+        const answered = yield* Deferred.make<void>();
+        const deadlineReached = yield* Deferred.make<void>();
+        const adapter = yield* makePiAdapter(enabledSettings(), {
+          makeTransport: () =>
+            Effect.succeed({
+              ...fake.transport,
+              writeExtensionResponse: (response) =>
+                fake.transport
+                  .writeExtensionResponse(response)
+                  .pipe(Effect.andThen(Deferred.succeed(answered, undefined)), Effect.asVoid),
+              request: (command, id, timeout, waitForInput) => {
+                if (command.type !== operation) return fake.transport.request(command, id, timeout);
+                return Effect.gen(function* () {
+                  yield* fake.pushExtensionUI({
+                    type: "extension_ui_request",
+                    id: "human-hook",
+                    method: "input",
+                    title: "Confirm context",
+                  });
+                  const drained = yield* Deferred.make<void>();
+                  yield* Queue.offer(fake.transport.messages, { _tag: "drain", deferred: drained });
+                  yield* Deferred.await(drained);
+                  // Reach the deadline while the callback still awaits the client.
+                  const waiting = waitForInput?.() === true;
+                  yield* Deferred.succeed(deadlineReached, undefined);
+                  if (!waiting) return undefined;
+                  yield* Deferred.await(answered);
+                  return asResponse({ type: "response", command: operation, success: true });
+                });
+              },
+            }),
+        });
+        const threadId = ThreadId.make(`pi-human-hook-${operation}`);
+        yield* adapter.startSession({
+          threadId,
+          provider: PI,
+          runtimeMode: "full-access",
+          resumeCursor: {
+            sessionFile: "/tmp/pi-session.json",
+            turnStartEntryIds: ["prior"],
+            lastEntryId: "prior",
+          },
+        });
+        fake.setResponse(
+          "get_entries",
+          asResponse({
+            type: "response",
+            command: "get_entries",
+            success: true,
+            data: {
+              leafId: "user",
+              entries: [
+                { id: "user", parentId: "prior", type: "message", message: { role: "user" } },
+              ],
+            },
+          }),
+        );
+        const question = yield* collectEvents(
+          adapter,
+          threadId,
+          (event) => event.type === "user-input.requested",
+        );
+        const compaction = adapter.compaction;
+        if (compaction?.type !== "native") throw new Error("missing compaction");
+        const action = yield* (
+          operation === "compact" ? compaction.start(threadId) : adapter.rollbackThread(threadId, 1)
+        ).pipe(Effect.asVoid, Effect.result, Effect.forkChild);
+        yield* Fiber.join(question.fiber);
+        const request = (yield* Ref.get(question.store)).find(
+          (event) => event.type === "user-input.requested",
+        );
+        if (request?.type !== "user-input.requested") throw new Error("missing question");
+        yield* Deferred.await(deadlineReached);
+        yield* adapter.respondToUserInput(threadId, ApprovalRequestId.make(request.requestId!), {
+          [request.payload.questions[0]!.id]: "continue",
+        });
+        expect(Result.isSuccess(yield* Fiber.join(action))).toBe(true);
+        expect(yield* adapter.hasSession(threadId)).toBe(true);
+        expect(fake.extensionResponses).toContainEqual({
+          type: "extension_ui_response",
+          id: "human-hook",
+          value: "continue",
+        });
+      }
+    }),
+  );
+
+  it.effect("materializes a binary archive's approval asset as a readable external extension", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "pi-binary-asset-test-" });
+      const source = NodeURL.fileURLToPath(
+        new URL("../assets/pi/t3-approvals.ts", import.meta.url),
+      );
+      const bundled = path.join(directory, "assets/pi/t3-approvals.ts");
+      yield* fs.makeDirectory(path.dirname(bundled), { recursive: true });
+      yield* fs.copyFile(source, bundled);
+      const fake = yield* makeFakePiRpcTransport;
+      let extension: string | undefined;
+      const adapter = yield* makePiAdapter(enabledSettings(), {
+        makeTransport: (options) => {
+          extension = options.args[options.args.indexOf("--extension") + 1];
+          return Effect.succeed(fake.transport);
+        },
+      }).pipe(
+        Effect.provideService(HostProcessIsExecutable, true),
+        Effect.provideService(HostProcessExecutablePath, path.join(directory, "t3")),
+      );
+      yield* adapter.startSession({
+        threadId: ThreadId.make("pi-binary-asset"),
+        provider: PI,
+        runtimeMode: "approval-required",
+      });
+      expect(extension).toBeDefined();
+      expect(extension).not.toBe(bundled);
+      expect(yield* fs.readFileString(extension!)).toBe(yield* fs.readFileString(source));
+    }),
+  );
+
+  it.effect("rejects unsupported Plan mode before issuing a prompt", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-plan-mode");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+      const result = yield* adapter
+        .sendTurn({ threadId, input: "plan", interactionMode: "plan" })
+        .pipe(Effect.result);
+      expect(Result.isFailure(result)).toBe(true);
+      expect(fake.commands.some((command) => command.type === "prompt")).toBe(false);
+    }),
+  );
+
+  it.effect("stops native execution before reporting an unacknowledged prompt as failed", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePiRpcTransport;
+      const killStarted = yield* Deferred.make<void>();
+      const killed = yield* Deferred.make<void>();
+      const adapter = yield* makePiAdapter(enabledSettings(), {
+        makeTransport: () =>
+          Effect.succeed({
+            ...fake.transport,
+            kill: Deferred.succeed(killStarted, undefined).pipe(
+              Effect.andThen(Deferred.await(killed)),
+            ),
+          }),
+      });
+      const threadId = ThreadId.make("pi-ack-timeout");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "session.exited",
+      );
+      fake.setResponse("prompt", undefined);
+      const submit = yield* adapter
+        .sendTurn({ threadId, input: "never acknowledged" })
+        .pipe(Effect.result, Effect.forkChild);
+      yield* Deferred.await(killStarted);
+      expect(
+        (yield* Ref.get(collected.store)).some((event) => event.type === "turn.completed"),
+      ).toBe(false);
+      yield* Deferred.succeed(killed, undefined);
+      expect(Result.isFailure(yield* Fiber.join(submit))).toBe(true);
+      yield* Fiber.join(collected.fiber);
+      expect(yield* adapter.hasSession(threadId)).toBe(false);
+      expect(
+        (yield* Ref.get(collected.store)).some(
+          (event) => event.type === "turn.completed" && event.payload.state === "failed",
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect(
+    "completes ordinary input consumed by an extension without leaving a running turn",
+    () =>
+      Effect.gen(function* () {
+        for (const disposition of ["handled", undefined]) {
+          const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+          const threadId = ThreadId.make(`pi-input-handled-${disposition ?? "legacy"}`);
+          yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+          fake.setResponse(
+            "prompt",
+            asResponse({
+              type: "response",
+              command: "prompt",
+              success: true,
+              data: { disposition },
+            }),
+          );
+          fake.setResponse(
+            "get_state",
+            asResponse({
+              type: "response",
+              command: "get_state",
+              success: true,
+              data: { sessionFile: "/tmp/pi-session.json", isStreaming: false },
+            }),
+          );
+          const collected = yield* collectEvents(
+            adapter,
+            threadId,
+            (event) => event.type === "turn.completed",
+          );
+          yield* adapter.sendTurn({ threadId, input: "ordinary extension input" });
+          yield* Fiber.join(collected.fiber);
+          const session = (yield* adapter.listSessions())[0];
+          expect(session?.status).toBe("ready");
+          expect(session?.activeTurnId).toBeUndefined();
+        }
+      }),
+  );
+
+  it.effect(
+    "keeps a legacy extension command running when native activity starts during reconciliation",
+    () =>
+      Effect.gen(function* () {
+        const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+        const threadId = ThreadId.make("pi-command-starting-work");
+        fake.setResponse(
+          "get_commands",
+          asResponse({
+            type: "response",
+            command: "get_commands",
+            success: true,
+            data: {
+              commands: [
+                { name: "busy-command", source: "extension" },
+                { name: "t3-approval-gate", source: "extension" },
+              ],
+            },
+          }),
+        );
+        yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+        fake.setResponse(
+          "get_state",
+          asResponse({
+            type: "response",
+            command: "get_state",
+            success: true,
+            data: { sessionFile: "/tmp/pi-session.json", isStreaming: true },
+          }),
+        );
+        fake.eventsBeforeResponse.set("get_state", [{ type: "agent_start" } as AgentSessionEvent]);
+        const turn = yield* adapter.sendTurn({ threadId, input: "/busy-command" });
+        expect((yield* adapter.listSessions())[0]?.activeTurnId).toBe(turn.turnId);
+        expect((yield* adapter.listSessions())[0]?.status).toBe("running");
+      }),
+  );
+
+  it.effect("interrupts manual compaction even when no conversation turn is active", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-stop-manual-compaction");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "full-access" });
+      const collected = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "session.state.changed" && event.payload.state === "waiting",
+      );
+      yield* fake.pushEvent({ type: "compaction_start", reason: "manual" } as AgentSessionEvent);
+      yield* Fiber.join(collected.fiber);
+      const ready = yield* collectEvents(
+        adapter,
+        threadId,
+        (event) => event.type === "session.state.changed" && event.payload.state === "ready",
+      );
+      yield* adapter.interruptTurn(threadId);
+      yield* Fiber.join(ready.fiber);
+      expect(fake.commands.slice(-2).map((command) => command.type)).toEqual([
+        "clear_queue",
+        "abort",
+      ]);
+      expect((yield* adapter.listSessions())[0]?.status).toBe("ready");
+    }),
+  );
+
+  it.effect(
+    "rewinds all steering messages with their T3 turn and persists the native boundary",
+    () =>
+      Effect.gen(function* () {
+        const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+        const threadId = ThreadId.make("pi-native-rewind-boundary");
+        const cursor = {
+          sessionFile: "/tmp/pi-session.json",
+          turnStartEntryIds: ["before"],
+          lastEntryId: "before",
+        };
+        yield* adapter.startSession({
+          threadId,
+          provider: PI,
+          runtimeMode: "full-access",
+          resumeCursor: cursor,
+        });
+        expect((yield* adapter.listSessions())[0]?.resumeCursor).toEqual(cursor);
+        fake.setResponse(
+          "get_entries",
+          asResponse({
+            type: "response",
+            command: "get_entries",
+            success: true,
+            data: {
+              leafId: "steer",
+              entries: [
+                { id: "prompt", parentId: "before", type: "message", message: { role: "user" } },
+                { id: "steer", parentId: "prompt", type: "message", message: { role: "user" } },
+              ],
+            },
+          }),
+        );
+        fake.setResponse("fork", asResponse({ type: "response", command: "fork", success: true }));
+        fake.setResponse(
+          "get_state",
+          asResponse({
+            type: "response",
+            command: "get_state",
+            success: true,
+            data: { sessionFile: "/tmp/pi-rewound.json" },
+          }),
+        );
+        yield* adapter.rollbackThread(threadId, 1);
+        expect(fake.commands).toContainEqual({ type: "fork", entryId: "prompt" });
+        expect((yield* adapter.listSessions())[0]?.resumeCursor).toEqual({
+          sessionFile: "/tmp/pi-rewound.json",
+        });
+        yield* adapter.stopSession(threadId);
+        const resumed = yield* adapter.startSession({
+          threadId,
+          provider: PI,
+          runtimeMode: "full-access",
+          resumeCursor: { sessionFile: "/tmp/pi-rewound.json" },
+        });
+        expect(resumed.resumeCursor).toEqual({ sessionFile: "/tmp/pi-rewound.json" });
+      }),
+  );
+
+  it.effect("fails and stops instead of accepting a fork without a new session cursor", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-unknown-fork-cursor");
+      yield* adapter.startSession({
+        threadId,
+        provider: PI,
+        runtimeMode: "full-access",
+        resumeCursor: {
+          sessionFile: "/tmp/pi-session.json",
+          turnStartEntryIds: [null],
+          lastEntryId: null,
+        },
+      });
+      fake.setResponse(
+        "new_session",
+        asResponse({ type: "response", command: "new_session", success: true }),
+      );
+      fake.setResponse("get_state", undefined);
+      const result = yield* adapter.rollbackThread(threadId, 1).pipe(Effect.result);
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result))
+        expect(result.failure).toMatchObject({
+          _tag: "ProviderAdapterRequestError",
+          method: "rollbackThread",
+        });
+      expect(yield* adapter.hasSession(threadId)).toBe(false);
+    }),
+  );
+
   it.effect("reports usage once across internal turns and resets it for the next T3 turn", () =>
     Effect.gen(function* () {
       const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
@@ -946,6 +1518,61 @@ it.layer(HarnessLayer)("PiAdapter integration", (it) => {
         id: "ui-1",
         confirmed: true,
       });
+    }),
+  );
+
+  it.effect("session approvals distinguish complete arguments and tool names", () =>
+    Effect.gen(function* () {
+      const { adapter, fake } = yield* makePiAdapterForTest(enabledSettings());
+      const threadId = ThreadId.make("pi-complete-approval-identity");
+      yield* adapter.startSession({ threadId, provider: PI, runtimeMode: "approval-required" });
+      const requests = yield* Queue.unbounded<ProviderRuntimeEvent>();
+      yield* adapter.streamEvents.pipe(
+        Stream.filter((event) => event.threadId === threadId && event.type === "request.opened"),
+        Stream.runForEach((event) => Queue.offer(requests, event)),
+        Effect.forkChild,
+      );
+      const command = `${"x".repeat(3000)}; echo first`;
+      const approve = Effect.fn(function* (id: string, title: string, value: string) {
+        yield* fake.pushExtensionUI({
+          type: "extension_ui_request",
+          id,
+          method: "confirm",
+          title,
+          message: encodeApprovalArguments({ command: value }),
+        });
+        const request = yield* Queue.take(requests);
+        expect(request.type).toBe("request.opened");
+        if (request.type !== "request.opened") throw new Error("missing approval");
+        expect(request.payload.args).toMatchObject({ command: value });
+        yield* adapter.respondToRequest(
+          threadId,
+          ApprovalRequestId.make(request.requestId!),
+          "acceptForSession",
+        );
+      });
+      yield* approve("long-first", "[t3-tool-approval] Run bash?", command);
+      yield* fake.pushExtensionUI({
+        type: "extension_ui_request",
+        id: "same",
+        method: "confirm",
+        title: "[t3-tool-approval] Run bash?",
+        message: encodeApprovalArguments({ command }),
+      });
+      const drained = yield* Deferred.make<void>();
+      yield* Queue.offer(fake.transport.messages, { _tag: "drain", deferred: drained });
+      yield* Deferred.await(drained);
+      expect(fake.extensionResponses).toContainEqual({
+        type: "extension_ui_response",
+        id: "same",
+        confirmed: true,
+      });
+      yield* approve(
+        "long-second",
+        "[t3-tool-approval] Run bash?",
+        `${"x".repeat(3000)}; echo second`,
+      );
+      yield* approve("other-tool", "[t3-tool-approval] Run shell?", command);
     }),
   );
 

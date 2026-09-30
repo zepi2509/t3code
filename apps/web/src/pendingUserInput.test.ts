@@ -78,19 +78,57 @@ describe("resolvePendingUserInputAnswer", () => {
     ).toEqual(["Server", "Web"]);
   });
 
-  it("uses editor prefill as the initial editable answer", () => {
-    const editorQuestion = {
-      ...singleSelectQuestion,
-      inputKind: "editor" as const,
-      options: [],
-      prefill: "line 1\nline 2",
-      multiline: true,
-    };
-    expect(resolvePendingUserInputAnswer(editorQuestion, undefined)).toBe("line 1\nline 2");
-    expect(derivePendingUserInputProgress([editorQuestion], {}, 0)).toMatchObject({
-      customAnswer: "line 1\nline 2",
-      isComplete: true,
-    });
+  it.each(["  line 1\n\tline 2\n  ", "\n\t  ", ""])(
+    "preserves editor prefill and edits verbatim: %j",
+    (text) => {
+      const editorQuestion = {
+        ...singleSelectQuestion,
+        inputKind: "editor" as const,
+        options: [],
+        prefill: text,
+        multiline: true,
+      };
+      expect(buildPendingUserInputAnswers([editorQuestion], {})).toEqual({ scope: text });
+      expect(derivePendingUserInputProgress([editorQuestion], {}, 0)).toMatchObject({
+        customAnswer: text,
+        resolvedAnswer: text,
+        usingCustomAnswer: true,
+        canAdvance: true,
+        isComplete: true,
+      });
+      const edited = setPendingUserInputCustomAnswer(undefined, `\n${text}\t`);
+      expect(buildPendingUserInputAnswers([editorQuestion], { scope: edited })).toEqual({
+        scope: `\n${text}\t`,
+      });
+      const cleared = setPendingUserInputCustomAnswer(edited, "");
+      expect(buildPendingUserInputAnswers([editorQuestion], { scope: cleared })).toEqual({
+        scope: "",
+      });
+      expect(derivePendingUserInputProgress([editorQuestion], { scope: cleared }, 0)).toMatchObject(
+        {
+          customAnswer: "",
+          resolvedAnswer: "",
+          canAdvance: true,
+        },
+      );
+    },
+  );
+
+  it("does not relax ordinary questionnaires or choice-only validation", () => {
+    for (const customAnswer of ["", "\n\t  "]) {
+      expect(
+        buildPendingUserInputAnswers([singleSelectQuestion], { scope: { customAnswer } }),
+      ).toBeNull();
+    }
+    expect(
+      resolvePendingUserInputAnswer(singleSelectQuestion, { customAnswer: "  answer\n " }),
+    ).toBe("answer");
+    expect(
+      resolvePendingUserInputAnswer(
+        { ...nativeChoiceQuestion, inputKind: "editor" },
+        { customAnswer: "" },
+      ),
+    ).toBeNull();
   });
 
   it("clears the preset selection when a custom answer is entered", () => {
