@@ -1,7 +1,15 @@
 import { RequestActionButton } from "./RequestActionButton";
 import { QuestionAttachments } from "./QuestionAttachments";
 import type { ApprovalRequestId, UserInputQuestion } from "@t3tools/contracts";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
+import {
+  buildPendingUserInputCancellation,
+  canCancelPendingUserInputQuestion,
+  pendingUserInputCustomAnswerText,
+} from "@t3tools/client-runtime/pending-requests";
+import { threadEnvironment } from "../../state/threads";
+import { useAtomCommand } from "../../state/use-atom-command";
+import { useThreadSelection } from "../../state/use-thread-selection";
 import { Platform, Pressable, ScrollView, View, type LayoutChangeEvent } from "react-native";
 import Animated, {
   Easing,
@@ -91,6 +99,36 @@ const CARD_LAYOUT_TRANSITION = LinearTransition.duration(200);
 
 export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const questionCount = props.pendingUserInput.questions.length;
+  const { selectedThread } = useThreadSelection();
+  const respondToUserInput = useAtomCommand(
+    threadEnvironment.respondToUserInput,
+    "thread user input cancellation",
+  );
+  const cancellationInFlight = useRef(false);
+  const [cancellingRequestId, setCancellingRequestId] = useState<ApprovalRequestId | null>(null);
+  const isResponding =
+    props.respondingUserInputId === props.pendingUserInput.requestId ||
+    cancellingRequestId === props.pendingUserInput.requestId;
+  const cancelQuestion = async (questionId: string) => {
+    if (!selectedThread || isResponding || cancellationInFlight.current) return;
+    const answers = buildPendingUserInputCancellation(props.pendingUserInput.questions, questionId);
+    if (!answers) return;
+    cancellationInFlight.current = true;
+    setCancellingRequestId(props.pendingUserInput.requestId);
+    try {
+      await respondToUserInput({
+        environmentId: selectedThread.environmentId,
+        input: {
+          threadId: selectedThread.id,
+          requestId: props.pendingUserInput.requestId,
+          answers,
+        },
+      });
+    } finally {
+      cancellationInFlight.current = false;
+      setCancellingRequestId(null);
+    }
+  };
 
   const cardCoverage = props.cardCoverage;
   const barHeightRef = useRef(0);
@@ -311,13 +349,21 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                 requestId={props.pendingUserInput.requestId}
                 question={question}
                 questions={props.pendingUserInput.questions}
-                disabled={props.respondingUserInputId === props.pendingUserInput.requestId}
-                value={draft?.customAnswer ?? ""}
+                disabled={isResponding}
+                value={pendingUserInputCustomAnswerText(question, draft?.customAnswer)}
                 onChangeText={(value) =>
                   props.onChangeCustomAnswer(props.pendingUserInput.requestId, question.id, value)
                 }
                 onInputFocusChange={props.onInputFocusChange}
               />
+              {canCancelPendingUserInputQuestion(question) ? (
+                <RequestActionButton
+                  label="Cancel"
+                  tone="secondary"
+                  disabled={isResponding}
+                  onPress={() => void cancelQuestion(question.id)}
+                />
+              ) : null}
             </View>
           );
         })}
@@ -326,16 +372,14 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         label="Submit answers"
         size="large"
         tone={props.answers ? "primary" : "secondary"}
-        disabled={
-          props.answers === null || props.respondingUserInputId === props.pendingUserInput.requestId
-        }
+        disabled={props.answers === null || isResponding}
         onPress={() => void props.onSubmit()}
       />
       {props.pendingUserInput.dismissible ? (
         <Pressable
           accessibilityRole="button"
           className="items-center justify-center rounded-2xl px-4 py-2.5 active:opacity-70"
-          disabled={props.respondingUserInputId === props.pendingUserInput.requestId}
+          disabled={isResponding}
           onPress={() => void props.onDismiss()}
         >
           <Text className="font-t3-bold text-sm text-foreground-muted">

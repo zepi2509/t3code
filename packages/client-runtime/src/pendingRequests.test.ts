@@ -1,6 +1,11 @@
 import { EventId, TurnId, type OrchestrationThreadActivity } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
-import { derivePendingRequests } from "./pendingRequests.ts";
+import {
+  buildPendingUserInputCancellation,
+  canCancelPendingUserInputQuestion,
+  derivePendingRequests,
+  resolvePendingUserInputCustomAnswer,
+} from "./pendingRequests.ts";
 
 let nextActivityId = 0;
 
@@ -246,6 +251,64 @@ describe("pending approvals", () => {
 });
 
 describe("pending questions", () => {
+  const dialogQuestion = {
+    id: " answer\t",
+    header: "Answer",
+    question: "Continue?",
+    options: [{ label: "Yes", description: "" }],
+    multiSelect: false,
+  };
+
+  it.each(["select", "confirm", "input", "editor"] as const)(
+    "allows explicit null cancellation for Pi %s dialogs, without making them dismissible",
+    (inputKind) => {
+      const request = derivePendingRequests([
+        makeActivity({
+          kind: "user-input.requested",
+          payload: { requestId: "pi-dialog", questions: [{ ...dialogQuestion, inputKind }] },
+        }),
+      ]).userInputs[0]!;
+      expect(request.dismissible).toBe(false);
+      expect(canCancelPendingUserInputQuestion(request.questions[0]!)).toBe(true);
+      expect(buildPendingUserInputCancellation(request.questions, dialogQuestion.id)).toEqual({
+        [dialogQuestion.id]: null,
+      });
+      expect(buildPendingUserInputCancellation(request.questions, "missing")).toBeNull();
+    },
+  );
+
+  it.each([undefined, "message"])(
+    "does not send null cancellation for ordinary questions (responseMode=%j)",
+    (responseMode) => {
+      const request = derivePendingRequests([
+        makeActivity({
+          kind: "user-input.requested",
+          payload: { requestId: "ordinary", responseMode, questions: [dialogQuestion] },
+        }),
+      ]).userInputs[0]!;
+      expect(canCancelPendingUserInputQuestion(request.questions[0]!)).toBe(false);
+      expect(buildPendingUserInputCancellation(request.questions, dialogQuestion.id)).toBeNull();
+      expect(buildPendingUserInputCancellation([], dialogQuestion.id)).toBeNull();
+    },
+  );
+
+  it("keeps empty editor submission distinct from cancellation", () => {
+    const question = {
+      ...dialogQuestion,
+      options: [],
+      inputKind: "editor" as const,
+      prefill: "\n old \t",
+    };
+    expect(resolvePendingUserInputCustomAnswer(question, undefined)).toBe("\n old \t");
+    expect(resolvePendingUserInputCustomAnswer(question, "")).toBe("");
+    expect(buildPendingUserInputCancellation([question], question.id)).toEqual({
+      [question.id]: null,
+    });
+    expect(
+      resolvePendingUserInputCustomAnswer({ ...question, prefill: undefined }, undefined),
+    ).toBe("");
+  });
+
   it("preserves native answer keys while ignoring malformed options", () => {
     const question = {
       id: "  Which path?\n",
