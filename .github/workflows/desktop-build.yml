@@ -15,7 +15,7 @@ on:
           - windows-x64
           - all
       publish:
-        description: Publish as a fork prerelease for automatic updates
+        description: Publish a fork release for the build's version/channel
         required: true
         default: false
         type: boolean
@@ -48,6 +48,8 @@ jobs:
       version: ${{ steps.build.outputs.version }}
       tag: ${{ steps.build.outputs.tag }}
       ref: ${{ steps.build.outputs.ref }}
+      is_prerelease: ${{ steps.build.outputs.is_prerelease }}
+      make_latest: ${{ steps.build.outputs.make_latest }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -86,8 +88,21 @@ jobs:
             done < <(gh api 'repos/zepi2509/t3code/releases?per_page=100' --jq '.[].tag_name')
             version="$prefix.$((build_number + 1))"
           fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: $upstream_tag" >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          # Only plain stable versions belong in the stable updater feed.
+          # Nightly, preview, and PR builds remain non-latest prereleases.
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "make_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+          fi
 
   build_wsl_runtime:
     name: Build WSL CLI runtime (linux-x64)
@@ -269,7 +284,7 @@ jobs:
             fi
           done
 
-      - name: Publish fork prerelease
+      - name: Publish fork release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
@@ -277,7 +292,7 @@ jobs:
           name: T3 Code fork ${{ needs.prepare.outputs.tag }}
           body: >-
             ${{ inputs.upstream_url && format('Based on upstream release: {0}', inputs.upstream_url) || 'Manual fork desktop build.' }}
-          prerelease: true
-          make_latest: false
+          prerelease: ${{ needs.prepare.outputs.is_prerelease }}
+          make_latest: ${{ needs.prepare.outputs.make_latest }}
           files: release/*
           fail_on_unmatched_files: true
