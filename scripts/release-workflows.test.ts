@@ -25,6 +25,10 @@ const Workflow = fromYaml(
       Schema.Struct({
         needs: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
         if: Schema.optional(Schema.String),
+        uses: Schema.optional(Schema.String),
+        with: Schema.optional(
+          Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Boolean, Schema.Number])),
+        ),
         outputs: Schema.optional(Schema.Record(Schema.String, Schema.String)),
         steps: Schema.optional(Schema.Array(Step)),
       }),
@@ -134,16 +138,21 @@ describe("desktop release publishing", () => {
 
 describe("release packaging workflow", () => {
   it("the release builds same-arch Linux archives for Windows through the reusable workflow", () => {
-    const workflowText = NodeFS.readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
     for (const arch of ["x64", "arm64"]) {
-      expect(workflowText).toMatch(new RegExp(`desktop_linux_${arch}:[\\s\\S]*?cli_archive: true`));
-      expect(workflowText).toMatch(new RegExp(`desktop_win_${arch}:[\\s\\S]*?cli_archive: true`));
-    }
-    for (const name of ["desktop_linux_x64", "desktop_linux_arm64", "desktop_win_x64", "desktop_win_arm64"]) {
-      expect(release.jobs[name]?.needs).toContain("build_bundle");
-      expect(workflowText).toMatch(new RegExp(`${name}:[\\s\\S]*?uses: \\.\\/\\.github\\/workflows\\/release-desktop\\.yml`));
+      for (const platform of ["linux", "win"]) {
+        const job = release.jobs[`desktop_${platform}_${arch}`];
+        expect(job?.needs).toContain("build_bundle");
+        expect(job?.uses).toBe("./.github/workflows/release-desktop.yml");
+        expect(job?.with?.platform).toBe(platform);
+        expect(job?.with?.arch).toBe(arch);
+        expect(job?.with?.cli_archive).toBe(true);
+        expect(job?.with?.version).toBe("${{ needs.preflight.outputs.version }}");
+      }
     }
     const steps = releaseDesktop.jobs.build?.steps ?? [];
+    expect(steps.find((step) => step.name === "Build CLI single-executable")?.run).toContain(
+      "cli.ts build-exe",
+    );
     const archive = steps.find((step) => step.name === "Build CLI archive");
     const smoke = steps.find((step) => step.name === "Smoke-test CLI archive");
     const upload = steps.find((step) => step.name === "Upload CLI archive");
@@ -155,78 +164,80 @@ describe("release packaging workflow", () => {
     expect(upload?.with?.name).toBe("cli-${{ inputs.platform }}-${{ inputs.arch }}");
     expect(wait?.if).toBe("inputs.platform == 'win'");
     expect(wait?.run).toContain("$env:ARTIFACT");
+    expect(wait?.run).toContain("$env:LINUX_JOB");
     expect(download?.if).toBe("inputs.platform == 'win'");
     expect(download?.with?.name).toBe("cli-linux-${{ inputs.arch }}");
     expect(download?.with?.path).toBe("wsl-runtime");
+    expect(upload?.with?.path).toBe("release-cli/*");
     expect(steps.find((step) => step.name === "Build desktop artifact")?.run).toContain(
       '--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/t3-*-linux-${{ inputs.arch }}.tar.gz',
     );
   });
 
   it("the standalone desktop build hands Windows a Linux CLI archive accepted by the packager", () => {
-      const workflow = desktop;
-      const prepareJob = "prepare";
-      const runtime = workflow.jobs.build_wsl_runtime;
-      expect(workflow.jobs.build?.needs).toContain("build_wsl_runtime");
-      const runtimeScript = runtime?.steps?.find(
-        (step) => step.name === "Build Linux CLI runtime",
-      )?.run;
-      expect(runtimeScript).toContain("vp run --filter t3 build");
-      expect(runtimeScript).toContain("cli.ts build-exe");
-      expect(runtimeScript).toContain("scripts/build-cli-archive.ts --platform linux --arch x64");
-      expect(runtimeScript).toContain(`--version "\${{ needs.${prepareJob}.outputs.version }}"`);
-      expect(runtimeScript).toContain("scripts/smoke-cli-archive.ts");
-      const upload = runtime?.steps?.find((step) =>
-        step.uses?.startsWith("actions/upload-artifact"),
-      );
-      const download = workflow.jobs.build?.steps?.find(
-        (step) => step.name === "Download WSL CLI runtime",
-      );
-      expect(download?.if).toBe("matrix.platform == 'win'");
-      expect(download?.with?.name).toBe(upload?.with?.name);
-      expect(upload?.with?.path).toBe("wsl-runtime/*.tar.gz");
+    const workflow = desktop;
+    const prepareJob = "prepare";
+    const runtime = workflow.jobs.build_wsl_runtime;
+    expect(workflow.jobs.build?.needs).toContain("build_wsl_runtime");
+    const runtimeScript = runtime?.steps?.find(
+      (step) => step.name === "Build Linux CLI runtime",
+    )?.run;
+    expect(runtimeScript).toContain("vp run --filter t3 build");
+    expect(runtimeScript).toContain("cli.ts build-exe");
+    expect(runtimeScript).toContain("scripts/build-cli-archive.ts --platform linux --arch x64");
+    expect(runtimeScript).toContain(`--version "\${{ needs.${prepareJob}.outputs.version }}"`);
+    expect(runtimeScript).toContain("scripts/smoke-cli-archive.ts");
+    const upload = runtime?.steps?.find((step) =>
+      step.uses?.startsWith("actions/upload-artifact"),
+    );
+    const download = workflow.jobs.build?.steps?.find(
+      (step) => step.name === "Download WSL CLI runtime",
+    );
+    expect(download?.if).toBe("matrix.platform == 'win'");
+    expect(download?.with?.name).toBe(upload?.with?.name);
+    expect(upload?.with?.path).toBe("wsl-runtime/*.tar.gz");
 
-      const buildScript = workflow.jobs.build?.steps?.find(
-        (step) => step.name === "Build desktop artifact",
-      )?.run;
-      if (buildScript === undefined) throw new Error("Missing desktop build script");
-      const log = NodeChildProcess.execFileSync(
-        "bash",
-        [
-          "-e",
-          "-c",
-          `
-        vp() { printf '%s\\n' "$@"; }
-        ${interpolate(buildScript, {
-          "matrix.platform": "win",
-          "matrix.target": "nsis",
-          "matrix.arch": "x64",
-          [`needs.${prepareJob}.outputs.version`]: "1.2.3",
-        })}
-      `,
-        ],
-        {
-          encoding: "utf8",
-          env: { GITHUB_WORKSPACE: repoRoot, RUNNER_TEMP: NodeOS.tmpdir(), PATH: process.env.PATH },
-        },
-      );
-      const args = log
-        .trim()
-        .split("\n")
-        .slice(log.trim().split("\n").indexOf("dist:desktop:artifact") + 1);
-      expect(args).toContain("--wsl-runtime");
-      expect(args).not.toContain("--wsl-prebuild");
-      expect(args[args.indexOf("--wsl-runtime") + 1]).toBe(
-        `${repoRoot}/wsl-runtime/t3-1.2.3-linux-x64.tar.gz`,
-      );
-      // --help parses the real packager's flags without running a build.
-      const help = NodeChildProcess.execFileSync(
-        process.execPath,
-        ["scripts/build-desktop-artifact.ts", ...args, "--help"],
-        { cwd: repoRoot, encoding: "utf8" },
-      );
-      expect(help).toContain("--wsl-runtime");
-    });
+    const buildScript = workflow.jobs.build?.steps?.find(
+      (step) => step.name === "Build desktop artifact",
+    )?.run;
+    if (buildScript === undefined) throw new Error("Missing desktop build script");
+    const log = NodeChildProcess.execFileSync(
+      "bash",
+      [
+        "-e",
+        "-c",
+        `
+      vp() { printf '%s\\n' "$@"; }
+      ${interpolate(buildScript, {
+        "matrix.platform": "win",
+        "matrix.target": "nsis",
+        "matrix.arch": "x64",
+        [`needs.${prepareJob}.outputs.version`]: "1.2.3",
+      })}
+    `,
+      ],
+      {
+        encoding: "utf8",
+        env: { GITHUB_WORKSPACE: repoRoot, RUNNER_TEMP: NodeOS.tmpdir(), PATH: process.env.PATH },
+      },
+    );
+    const args = log
+      .trim()
+      .split("\n")
+      .slice(log.trim().split("\n").indexOf("dist:desktop:artifact") + 1);
+    expect(args).toContain("--wsl-runtime");
+    expect(args).not.toContain("--wsl-prebuild");
+    expect(args[args.indexOf("--wsl-runtime") + 1]).toBe(
+      `${repoRoot}/wsl-runtime/t3-1.2.3-linux-x64.tar.gz`,
+    );
+    // --help parses the real packager's flags without running a build.
+    const help = NodeChildProcess.execFileSync(
+      process.execPath,
+      ["scripts/build-desktop-artifact.ts", ...args, "--help"],
+      { cwd: repoRoot, encoding: "utf8" },
+    );
+    expect(help).toContain("--wsl-runtime");
+  });
 
   it("installs libsecret prerequisites before release tests and Linux desktop compilation", () => {
     for (const [steps, consumer] of [
