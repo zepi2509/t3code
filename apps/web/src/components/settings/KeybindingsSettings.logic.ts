@@ -16,12 +16,9 @@ import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
 
 const usageCommandOrder = new Map<KeybindingCommand, number>(
-  [
-    METRIC_OPTIONS[0],
-    { command: "usage.open" as const },
-    ...METRIC_OPTIONS.slice(1),
-    ...WINDOW_OPTIONS,
-  ].map((option, index) => [option.command, index]),
+  [...METRIC_OPTIONS, ...WINDOW_OPTIONS, { command: "usage.open" as const }].map(
+    (option, index) => [option.command, index],
+  ),
 );
 
 const firstUsageCommand = METRIC_OPTIONS[0].command;
