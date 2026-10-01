@@ -637,6 +637,34 @@ describe("model picker navigation helpers", () => {
 });
 
 describe("chat/editor shortcuts", () => {
+  it("keeps the project-free shortcut alongside Pi's queued-send shortcut", () => {
+    for (const [platform, modifier] of [
+      ["MacIntel", { metaKey: true }],
+      ["Linux", { ctrlKey: true }],
+    ] as const) {
+      assert.strictEqual(
+        resolveShortcutCommand(
+          event({ key: "n", altKey: true, ...modifier }),
+          DEFAULT_RESOLVED_KEYBINDINGS,
+          { platform },
+        ),
+        "chat.newWithoutProject",
+      );
+      assert.strictEqual(
+        resolveShortcutCommand(event({ key: "Enter", ...modifier }), DEFAULT_RESOLVED_KEYBINDINGS, {
+          platform,
+        }),
+        "composer.sendAfterCompletion",
+      );
+      assert.isNull(
+        resolveShortcutCommand(event({ key: "Enter", ...modifier }), DEFAULT_RESOLVED_KEYBINDINGS, {
+          platform,
+          context: { terminalFocus: true },
+        }),
+      );
+    }
+  });
+
   it("matches chat.new shortcut", () => {
     assert.strictEqual(
       resolveShortcutCommand(event({ key: "o", metaKey: true, shiftKey: true }), DEFAULT_BINDINGS, {
