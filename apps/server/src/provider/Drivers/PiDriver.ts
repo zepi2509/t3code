@@ -26,6 +26,7 @@ import { ProviderDriverError } from "../Errors.ts";
 import {
   buildInitialPiProviderSnapshot,
   checkPiProviderStatus,
+  discoverPiCommandsViaRpc,
   enrichPiSnapshot,
 } from "../Layers/PiProvider.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
@@ -36,6 +37,7 @@ import {
 } from "../ProviderDriver.ts";
 import type { ServerProviderDraft } from "../providerSnapshot.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { withPiBuiltinSlashCommands } from "../PiCommands.ts";
 import {
   makeCachedProviderMaintenanceResolution,
   makePackageManagedProviderMaintenanceResolver,
@@ -180,6 +182,31 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv> = {
         ),
       );
 
+      const snapshotForCwd = (workspaceCwd: string) =>
+        !effectiveConfig.enabled
+          ? snapshot.getSnapshot
+          : Effect.all([
+              snapshot.getSnapshot,
+              discoverPiCommandsViaRpc(effectiveConfig, processEnv, workspaceCwd).pipe(
+                Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+                Effect.mapError(
+                  (cause) =>
+                    new ProviderDriverError({
+                      driver: DRIVER_KIND,
+                      instanceId,
+                      detail: `Failed to discover Pi commands for '${workspaceCwd}'`,
+                      cause,
+                    }),
+                ),
+              ),
+            ]).pipe(
+              Effect.map(([machineSnapshot, resources]) => ({
+                ...machineSnapshot,
+                slashCommands: withPiBuiltinSlashCommands(resources.slashCommands),
+                skills: resources.skills,
+              })),
+            );
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -188,6 +215,7 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv> = {
         accentColor,
         enabled,
         snapshot,
+        snapshotForCwd,
         orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;

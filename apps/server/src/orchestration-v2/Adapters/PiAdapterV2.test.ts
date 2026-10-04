@@ -40,6 +40,7 @@ import {
   type ProviderAdapterV2SessionRuntime,
 } from "../ProviderAdapter.ts";
 import { handoffBudget } from "../ContextHandoffBudget.ts";
+import { discoverPiCommandsViaRpc } from "../../provider/Layers/PiProvider.ts";
 import { makePiAdapterV2, PI_PROVIDER } from "./PiAdapterV2.ts";
 import { makePiRpcConnection, type PiRpcRecord } from "./PiRpc.ts";
 
@@ -2317,6 +2318,46 @@ describe("PiAdapterV2", () => {
       const terminal = yield* takeEvent((event) => event.type === "turn.terminal");
       assert.isTrue(terminal.type === "turn.terminal" && terminal.status === "completed");
     }).pipe(Effect.scoped, Effect.provide(testLayer)),
+  );
+});
+
+describe("Pi workspace resource discovery", () => {
+  const settings = { enabled: true, binaryPath: "pi", launchArgs: "", customModels: [] } as const;
+
+  it.effect("discovers project commands and skills without replacing the machine catalog", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePi;
+      fake.queueCommands({
+        commands: [
+          { name: "project-command", source: "extension", description: "Project command" },
+          { name: "skill:project-skill", source: "skill", path: "/work/.pi/skills/project-skill" },
+        ],
+      });
+      const resources = yield* discoverPiCommandsViaRpc(settings, {}, "/work").pipe(
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, fake.spawner),
+      );
+      assert.deepEqual(
+        resources.slashCommands.map((command) => command.name),
+        ["project-command"],
+      );
+      assert.deepEqual(resources.skills.map((skill) => skill.name), ["project-skill"]);
+      assert.isTrue(fake.allRequests().some((request) => request["type"] === "get_commands"));
+      assert.isFalse(
+        fake.allRequests().some((request) => request["type"] === "get_available_models"),
+      );
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("fails a workspace scan rather than caching an empty catalog", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePi;
+      fake.failNextCommands();
+      const result = yield* discoverPiCommandsViaRpc(settings, {}, "/work").pipe(
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, fake.spawner),
+        Effect.result,
+      );
+      assert.equal(result._tag, "Failure");
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 });
 
