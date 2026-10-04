@@ -5,7 +5,11 @@ import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { checkPiProviderStatus, MINIMUM_PI_VERSION } from "./PiProvider.ts";
+import {
+  checkPiProviderStatus,
+  discoverPiCommandsViaRpc,
+  MINIMUM_PI_VERSION,
+} from "./PiProvider.ts";
 
 const encoder = new TextEncoder();
 
@@ -52,6 +56,18 @@ const settings = {
 } as const;
 
 describe("PiProvider", () => {
+  it.effect("reports invalid workspace launch arguments as a typed discovery failure", () =>
+    Effect.gen(function* () {
+      const error = yield* discoverPiCommandsViaRpc(
+        { ...settings, launchArgs: "--mode rpc" },
+        {},
+        "/work",
+      ).pipe(Effect.flip);
+      assert.equal(error._tag, "PiCommandDiscoveryError");
+      assert.include(error.message, "controlled by T3 Code");
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("requires the first published Pi version with entries and settlement hooks", () =>
     Effect.gen(function* () {
       const snapshot = yield* checkPiProviderStatus(settings).pipe(
