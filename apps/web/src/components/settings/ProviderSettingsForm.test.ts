@@ -25,7 +25,20 @@ describe("ProviderSettingsForm helpers", () => {
 
     expect(pi).toBeDefined();
     expect(pi!.label).toBe("Pi");
-    expect(deriveProviderSettingsFields(pi!).map((field) => field.key)).toEqual(["binaryPath"]);
+    const fields = deriveProviderSettingsFields(pi!);
+    expect(fields.map((field) => field.key)).toEqual(["binaryPath", "launchArgs"]);
+    expect(fields.find((field) => field.key === "launchArgs")).toMatchObject({
+      label: "Launch arguments",
+      description: "Additional CLI arguments passed to pi --mode rpc on session start.",
+      clearWhenEmpty: "omit",
+    });
+    expect(
+      nextProviderConfigWithFieldValue(
+        undefined,
+        fields.find((field) => field.key === "launchArgs")!,
+        "--model test",
+      ),
+    ).toEqual({ launchArgs: "--model test" });
   });
 
   it("sources labels and descriptions from schema annotations", () => {
