@@ -168,6 +168,36 @@ const discoverPiViaRpc = (
     } satisfies PiDiscovery;
   }).pipe(Effect.scoped);
 
+/** Project extensions and skills depend on cwd, unlike the machine model catalog. */
+export const discoverPiCommandsViaRpc = (
+  piSettings: PiSettings,
+  environment: NodeJS.ProcessEnv,
+  cwd: string,
+) =>
+  Effect.gen(function* () {
+    const resolved = resolvePiLaunchArgs(piSettings.launchArgs);
+    if (!resolved.ok) return yield* Effect.fail(new Error(resolved.message));
+    const launch = buildPiRpcLaunch({
+      launchArgs: resolved.args,
+      environment,
+      mcpSession: undefined,
+      extensionPath: undefined,
+      ephemeral: true,
+    });
+    const connection = yield* makePiRpcConnection({
+      command: piSettings.binaryPath || "pi",
+      args: launch.args,
+      cwd,
+      env: launch.env,
+    });
+    yield* Stream.fromQueue(connection.events).pipe(Stream.runDrain, Effect.ignore, Effect.forkScoped);
+    const commands = yield* connection.request({ type: "get_commands" });
+    if (!Array.isArray(recordField(commands, "commands"))) {
+      return yield* Effect.fail(new Error("Pi returned no command catalog."));
+    }
+    return parsePiDiscoveredCommands(commands);
+  }).pipe(Effect.scoped, Effect.timeout(PI_RPC_DISCOVERY_TIMEOUT_MS));
+
 const runPiVersionCommand = (piSettings: PiSettings, environment: NodeJS.ProcessEnv) =>
   Effect.gen(function* () {
     const command = piSettings.binaryPath || "pi";
