@@ -23,6 +23,7 @@ import * as Stream from "effect/Stream";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import { HttpClient } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -69,6 +70,16 @@ const PI_PRESENTATION = {
 
 const VERSION_PROBE_TIMEOUT_MS = 4_000;
 const PI_RPC_DISCOVERY_TIMEOUT_MS = 15_000;
+
+class PiCommandDiscoveryError extends Schema.TaggedError<PiCommandDiscoveryError>()(
+  "PiCommandDiscoveryError",
+  { detail: Schema.String },
+) {
+  override get message(): string {
+    return `Pi command discovery failed: ${this.detail}`;
+  }
+}
+
 /**
  * get_entries arrived in 0.80.3 and agent_settled landed in source at 0.80.4.
  * Version 0.80.5 was the first published package containing both hooks. T3
@@ -176,7 +187,9 @@ export const discoverPiCommandsViaRpc = (
 ) =>
   Effect.gen(function* () {
     const resolved = resolvePiLaunchArgs(piSettings.launchArgs);
-    if (!resolved.ok) return yield* Effect.fail(new Error(resolved.message));
+    if (!resolved.ok) {
+      return yield* Effect.fail(new PiCommandDiscoveryError({ detail: resolved.message }));
+    }
     const launch = buildPiRpcLaunch({
       launchArgs: resolved.args,
       environment,
@@ -190,10 +203,16 @@ export const discoverPiCommandsViaRpc = (
       cwd,
       env: launch.env,
     });
-    yield* Stream.fromQueue(connection.events).pipe(Stream.runDrain, Effect.ignore, Effect.forkScoped);
+    yield* Stream.fromQueue(connection.events).pipe(
+      Stream.runDrain,
+      Effect.ignore,
+      Effect.forkScoped,
+    );
     const commands = yield* connection.request({ type: "get_commands" });
     if (!Array.isArray(recordField(commands, "commands"))) {
-      return yield* Effect.fail(new Error("Pi returned no command catalog."));
+      return yield* Effect.fail(
+        new PiCommandDiscoveryError({ detail: "Pi returned no command catalog." }),
+      );
     }
     return parsePiDiscoveredCommands(commands);
   }).pipe(Effect.scoped, Effect.timeout(PI_RPC_DISCOVERY_TIMEOUT_MS));
