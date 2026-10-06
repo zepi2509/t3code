@@ -55,7 +55,7 @@
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
             fetcherVersion = 4;
-            hash = "sha256-WZSV8+ugCLfls7jW7hPFoL4wYAffpER71zt2VhaTVzQ=";
+            hash = "sha256-Uw0fK9Jhxdw3lxYezTderBQ8yw9eqTRPq1Sa3dcvDD4=";
           };
         });
         server = desktopUnwrapped.overrideAttrs (final: previous: {
@@ -69,7 +69,7 @@
             inherit (final) pname version src pnpmWorkspaces;
             pnpm = pkgs.pnpm_11;
             fetcherVersion = 4;
-            hash = "sha256-NAbIEfisLQ6y54yZHVxHRR7JbYOZHJAGMJ4oFPUXpYQ=";
+            hash = "sha256-CRoIxkxafRS+hDrvTIY0gYt5ZirBVk/Mly1FqM68PUw=";
           };
           buildPhase = ''
             runHook preBuild
