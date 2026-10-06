@@ -4,15 +4,6 @@ on:
   push:
     branches:
       - main
-  # Redeploys main after a variable or secret change. Alchemy redeploys the
-  # Worker when a value it reads changes, so force is rarely needed, and it
-  # replaces the Postgres runtime role (alchemy-run/alchemy#1832).
-  workflow_dispatch:
-    inputs:
-      force:
-        description: Redeploy every resource, including ones with no detected changes. Replaces the Postgres runtime role.
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -26,8 +17,6 @@ concurrency:
 jobs:
   deploy_relay:
     name: Deploy production relay
-    # A manual run from another branch must not deploy that branch to production.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
@@ -39,8 +28,6 @@ jobs:
       RELAY_DOMAIN: ${{ vars.RELAY_DOMAIN }}
       RELAY_API_ZONE_NAME: ${{ vars.RELAY_API_ZONE_NAME }}
       RELAY_TUNNEL_ZONE_NAME: ${{ vars.RELAY_TUNNEL_ZONE_NAME }}
-      RELAY_TUNNEL_CLEANUP_MODE: ${{ vars.RELAY_TUNNEL_CLEANUP_MODE }}
-      RELAY_LEGACY_TUNNEL_CLEANUP_MODE: ${{ vars.RELAY_LEGACY_TUNNEL_CLEANUP_MODE }}
       CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
       CLERK_JWT_AUDIENCE: ${{ vars.CLERK_JWT_AUDIENCE }}
       APNS_ENVIRONMENT: ${{ vars.APNS_ENVIRONMENT }}
@@ -67,7 +54,7 @@ jobs:
               - --filter=t3code-relay...
 
       - name: Deploy production relay stage
-        run: vp run --filter t3code-relay deploy --stage prod --yes --no-input ${{ inputs.force && '--force' || '' }}
+        run: vp run --filter t3code-relay deploy --stage prod --yes --no-input
         env:
           # The PublishClientConfig action writes the client env here instead
           # of the repo-root .env; nothing on the runner reads it.
