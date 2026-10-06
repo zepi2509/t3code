@@ -40,7 +40,7 @@ import {
   type ProviderAdapterV2SessionRuntime,
 } from "../ProviderAdapter.ts";
 import { handoffBudget } from "../ContextHandoffBudget.ts";
-import { discoverPiCommandsViaRpc } from "../../provider/Layers/PiProvider.ts";
+import { discoverPiCommandsViaRpc } from "../../provider/PiProvider.ts";
 import { makePiAdapterV2, PI_PROVIDER } from "./PiAdapterV2.ts";
 import { makePiRpcConnection, type PiRpcRecord } from "./PiRpc.ts";
 
@@ -2381,7 +2381,10 @@ describe("Pi workspace resource discovery", () => {
         resources.slashCommands.map((command) => command.name),
         ["project-command"],
       );
-      assert.deepEqual(resources.skills.map((skill) => skill.name), ["project-skill"]);
+      assert.deepEqual(
+        resources.skills.map((skill) => skill.name),
+        ["project-skill"],
+      );
       assert.isTrue(fake.allRequests().some((request) => request["type"] === "get_commands"));
       assert.isFalse(
         fake.allRequests().some((request) => request["type"] === "get_available_models"),
